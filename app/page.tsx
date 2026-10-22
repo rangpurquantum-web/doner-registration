@@ -12,7 +12,7 @@ const MAX_DOTS = 20;
 
 const RICE = "text-[#f3f1e8]";
 const MUTED = "text-[#9db8aa]";
-const serif = "[font-family:var(--font-serif-bn),serif]";
+const serif = "[font-family:var(--font-sans-bn),system-ui,sans-serif]";
 
 const bn = (n: number) => n.toLocaleString("bn-BD");
 
@@ -83,7 +83,7 @@ export default function PublicStockPage() {
       <header className="pb-8">
         <p className={`text-sm ${MUTED}`}>প্রজ্ঞা ফুড</p>
         <h1
-          className={`${serif} ${RICE} mt-1 text-5xl font-semibold leading-[1.4]`}
+          className={`${serif} ${RICE} mt-1 text-5xl leading-[1.4]`}
         >
           আজকের পিঠা
         </h1>
@@ -181,7 +181,7 @@ export default function PublicStockPage() {
                   </div>
 
                   <p
-                    className={`${serif} shrink-0 text-right text-5xl font-semibold leading-none tabular-nums ${
+                    className={`${serif} shrink-0 text-right text-5xl leading-none tabular-nums ${
                       out ? "text-[#7f988b]" : RICE
                     }`}
                   >
