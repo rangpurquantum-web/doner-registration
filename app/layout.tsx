@@ -2,10 +2,9 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
-// ফন্ট ফাইল repo-র root-এর font ফোল্ডারে (app ফোল্ডারের পাশে) আছে ধরা হয়েছে।
-// ফোল্ডার app-এর ভেতরে থাকলে নিচের পথ বদলে "./font/Siyamrupali.ttf" করো।
+// ফন্ট ফাইল: app/font/Siyamrupali.ttf
 const siyam = localFont({
-  src: "../font/Siyamrupali.ttf",
+  src: "./font/Siyamrupali.ttf",
   weight: "400",
   variable: "--font-sans-bn",
   display: "swap",
