@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
-// ফন্ট ফাইলটা app/fonts/SolaimanLipi.ttf নামে রাখতে হবে
+// ফন্ট ফাইলটা app/fonts/Siyamrupali.ttf নামে রাখতে হবে
 const solaiman = localFont({
-  src: "./fonts/SolaimanLipi.ttf",
+  src: "./fonts/Siyamrupali.ttf",
   weight: "400",
   variable: "--font-sans-bn",
   display: "swap",
