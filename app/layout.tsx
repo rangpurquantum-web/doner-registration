@@ -2,9 +2,10 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
-// ফন্ট ফাইলটা app/fonts/Siyamrupali.ttf নামে রাখতে হবে
-const solaiman = localFont({
-  src: "./fonts/Siyamrupali.ttf",
+// ফন্ট ফাইল repo-র root-এর font ফোল্ডারে (app ফোল্ডারের পাশে) আছে ধরা হয়েছে।
+// ফোল্ডার app-এর ভেতরে থাকলে নিচের পথ বদলে "./font/Siyamrupali.ttf" করো।
+const siyam = localFont({
+  src: "../font/Siyamrupali.ttf",
   weight: "400",
   variable: "--font-sans-bn",
   display: "swap",
@@ -28,7 +29,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="bn">
-      <body className={`${solaiman.variable} antialiased`}>{children}</body>
+      <body className={`${siyam.variable} antialiased`}>{children}</body>
     </html>
   );
 }
