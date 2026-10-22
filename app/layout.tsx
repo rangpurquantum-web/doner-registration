@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
-// ফন্ট ফাইল: app/font/Siyamrupali.ttf
+// ফন্ট ফাইল: app/front/Siyamrupali.ttf
 const siyam = localFont({
-  src: "./font/Siyamrupali.ttf",
+  src: "./front/Siyamrupali.ttf",
   weight: "400",
   variable: "--font-sans-bn",
   display: "swap",
