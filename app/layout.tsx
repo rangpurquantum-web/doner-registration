@@ -11,7 +11,7 @@ const siyam = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Pragya Food — আজকের পিঠা",
+  title: "প্রাজ্ঞ ফুড — আজকের পিঠা",
   description: "আজ কোন পিঠা কতটি আছে, সরাসরি দেখুন।",
 };
 
