@@ -81,7 +81,7 @@ export default function PublicStockPage() {
   return (
     <main className="mx-auto min-h-screen max-w-xl bg-[#14372b] px-6 pb-14 pt-12">
       <header className="pb-8">
-        <p className={`text-sm ${MUTED}`}>প্রজ্ঞা ফুড</p>
+        <p className={`text-sm ${MUTED}`}>প্রাজ্ঞ ফুড</p>
         <h1
           className={`${serif} ${RICE} mt-1 text-5xl leading-[1.4]`}
         >
