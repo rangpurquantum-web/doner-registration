@@ -1,18 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Hind_Siliguri, Noto_Serif_Bengali } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const sans = Hind_Siliguri({
-  subsets: ["bengali", "latin"],
-  weight: ["400", "500", "600"],
+// ফন্ট ফাইলটা app/fonts/SolaimanLipi.ttf নামে রাখতে হবে
+const solaiman = localFont({
+  src: "./fonts/SolaimanLipi.ttf",
+  weight: "400",
   variable: "--font-sans-bn",
-  display: "swap",
-});
-
-const serif = Noto_Serif_Bengali({
-  subsets: ["bengali", "latin"],
-  weight: ["400", "600"],
-  variable: "--font-serif-bn",
   display: "swap",
 });
 
@@ -34,9 +28,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="bn">
-      <body className={`${sans.variable} ${serif.variable} antialiased`}>
-        {children}
-      </body>
+      <body className={`${solaiman.variable} antialiased`}>{children}</body>
     </html>
   );
 }
