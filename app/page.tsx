@@ -22,10 +22,28 @@ function toneOf(n: number): Tone {
   return "ok";
 }
 
-const TONE: Record<Tone, { label: string; text: string; dot: string }> = {
-  ok: { label: "আছে", text: "text-[#9ad6b0]", dot: "bg-[#f3f1e8]" },
-  low: { label: "কম আছে", text: "text-[#e3a83f]", dot: "bg-[#e3a83f]" },
-  out: { label: "শেষ", text: "text-[#7f988b]", dot: "" },
+const TONE: Record<
+  Tone,
+  { label: string; text: string; dot: string; badgeBg: string }
+> = {
+  ok: {
+    label: "আছে",
+    text: "text-[#9ad6b0]",
+    dot: "bg-[#9ad6b0]",
+    badgeBg: "bg-[#9ad6b0]/10 border-[#9ad6b0]/20",
+  },
+  low: {
+    label: "কম আছে",
+    text: "text-[#e3a83f]",
+    dot: "bg-[#e3a83f]",
+    badgeBg: "bg-[#e3a83f]/10 border-[#e3a83f]/20",
+  },
+  out: {
+    label: "শেষ",
+    text: "text-[#7f988b]",
+    dot: "",
+    badgeBg: "bg-transparent border-[#7f988b]/20",
+  },
 };
 
 export default function PublicStockPage() {
@@ -79,31 +97,51 @@ export default function PublicStockPage() {
   const allGone = items.length > 0 && items.every((p) => p.remaining <= 0);
 
   return (
-    <main className="mx-auto min-h-screen max-w-xl bg-[#14372b] px-6 pb-14 pt-12">
-      <header className="pb-8">
-        <p className={`text-sm ${MUTED}`}>প্রাজ্ঞ ফুড</p>
+    <main className="mx-auto min-h-screen max-w-xl bg-[#14372b] px-6 pb-16 pt-14">
+      {/* Header */}
+      <header className="pb-10">
+        <div className="flex items-center justify-between">
+          <p className={`text-xs uppercase tracking-[0.18em] ${MUTED}`}>
+            প্রাজ্ঞ ফুড
+          </p>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border border-[#f3f1e8]/15 px-2.5 py-1 text-[11px] ${MUTED}`}
+          >
+            <span className="relative flex h-1.5 w-1.5" aria-hidden>
+              <span className="absolute inline-flex h-full w-full rounded-full bg-[#9ad6b0] opacity-75 motion-safe:animate-ping" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#9ad6b0]" />
+            </span>
+            লাইভ
+          </span>
+        </div>
+
         <h1
-          className={`${serif} ${RICE} mt-1 text-5xl leading-[1.4]`}
+          className={`${serif} ${RICE} mt-4 text-5xl leading-[1.35] tracking-tight`}
         >
           আজকের পিঠা
         </h1>
-        <p className={`mt-3 flex items-center gap-2 text-sm ${MUTED}`}>
-          <span className="relative flex h-2 w-2" aria-hidden>
-            <span className="absolute inline-flex h-full w-full rounded-full bg-[#9ad6b0] opacity-75 motion-safe:animate-ping" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-[#9ad6b0]" />
-          </span>
-          {updated ? `${updated}-এ হালনাগাদ` : "হালনাগাদ হচ্ছে"}
+        <p className={`mt-3 text-sm ${MUTED}`}>
+          {updated ? `সর্বশেষ হালনাগাদ ${updated}-এ` : "হালনাগাদ হচ্ছে…"}
         </p>
       </header>
 
+      {/* States */}
       {!data && !failed && (
-        <p className={`border-t border-[#f3f1e8]/15 py-8 text-sm ${MUTED}`}>
-          লোড হচ্ছে…
-        </p>
+        <section className="space-y-3 border-t border-[#f3f1e8]/15 py-10">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center justify-between gap-4">
+              <div className="flex-1 space-y-2">
+                <div className="h-5 w-32 rounded bg-[#f3f1e8]/10 motion-safe:animate-pulse" />
+                <div className="h-3 w-16 rounded bg-[#f3f1e8]/10 motion-safe:animate-pulse" />
+              </div>
+              <div className="h-10 w-12 rounded bg-[#f3f1e8]/10 motion-safe:animate-pulse" />
+            </div>
+          ))}
+        </section>
       )}
 
       {failed && !data && (
-        <section className="border-t border-[#f3f1e8]/15 py-8">
+        <section className="rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03] p-6">
           <p className={`${serif} ${RICE} text-2xl leading-snug`}>
             স্টক আনা যায়নি
           </p>
@@ -114,7 +152,7 @@ export default function PublicStockPage() {
       )}
 
       {data && !data.open && (
-        <section className="border-t border-[#f3f1e8]/15 py-8">
+        <section className="rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03] p-6">
           <p className={`${serif} ${RICE} text-2xl leading-snug`}>
             এখন বিক্রি বন্ধ আছে
           </p>
@@ -125,7 +163,7 @@ export default function PublicStockPage() {
       )}
 
       {data && data.open && items.length === 0 && (
-        <section className="border-t border-[#f3f1e8]/15 py-8">
+        <section className="rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03] p-6">
           <p className={`${serif} ${RICE} text-2xl leading-snug`}>
             আজকের পিঠা এখনও যোগ হয়নি
           </p>
@@ -135,9 +173,10 @@ export default function PublicStockPage() {
         </section>
       )}
 
+      {/* List */}
       {data && data.open && items.length > 0 && (
         <>
-          <ul className="border-t border-[#f3f1e8]/15">
+          <ul className="space-y-3">
             {items.map((p) => {
               const tone = toneOf(p.remaining);
               const t = TONE[tone];
@@ -147,65 +186,84 @@ export default function PublicStockPage() {
               return (
                 <li
                   key={p.name}
-                  className="flex items-center justify-between gap-4 border-b border-[#f3f1e8]/15 py-5"
+                  className={`rounded-2xl border p-5 transition-colors ${
+                    out
+                      ? "border-[#f3f1e8]/10 bg-[#f3f1e8]/[0.02]"
+                      : "border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.04]"
+                  }`}
                 >
-                  <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`${serif} text-2xl leading-snug ${
+                          out
+                            ? "text-[#7f988b] line-through decoration-1"
+                            : RICE
+                        }`}
+                      >
+                        {p.name}
+                      </p>
+
+                      <span
+                        className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] ${t.text} ${t.badgeBg}`}
+                      >
+                        {!out && (
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${t.dot}`}
+                          />
+                        )}
+                        {t.label}
+                      </span>
+
+                      {!out && (
+                        <div
+                          className="mt-3 flex flex-wrap items-center gap-1.5"
+                          aria-hidden
+                        >
+                          {Array.from({ length: dots }).map((_, i) => (
+                            <span
+                              key={i}
+                              className={`h-2 w-2 rounded-full ${t.dot}`}
+                            />
+                          ))}
+                          {p.remaining > MAX_DOTS && (
+                            <span className={`ml-1 text-xs ${MUTED}`}>
+                              +{bn(p.remaining - MAX_DOTS)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
                     <p
-                      className={`${serif} text-2xl leading-snug ${
-                        out
-                          ? "text-[#7f988b] line-through decoration-1"
-                          : RICE
+                      className={`${serif} shrink-0 text-right text-5xl leading-none tabular-nums ${
+                        out ? "text-[#7f988b]" : RICE
                       }`}
                     >
-                      {p.name}
+                      {bn(p.remaining)}
+                      <span className={`ml-1 text-base font-normal ${MUTED}`}>
+                        টি
+                      </span>
                     </p>
-                    <p className={`mt-1 text-sm ${t.text}`}>{t.label}</p>
-                    {!out && (
-                      <div
-                        className="mt-3 flex flex-wrap items-center gap-1.5"
-                        aria-hidden
-                      >
-                        {Array.from({ length: dots }).map((_, i) => (
-                          <span
-                            key={i}
-                            className={`h-2.5 w-2.5 rounded-full ${t.dot}`}
-                          />
-                        ))}
-                        {p.remaining > MAX_DOTS && (
-                          <span className={`text-xs ${MUTED}`}>
-                            +{bn(p.remaining - MAX_DOTS)}
-                          </span>
-                        )}
-                      </div>
-                    )}
                   </div>
-
-                  <p
-                    className={`${serif} shrink-0 text-right text-5xl leading-none tabular-nums ${
-                      out ? "text-[#7f988b]" : RICE
-                    }`}
-                  >
-                    {bn(p.remaining)}
-                    <span
-                      className={`ml-1 text-base font-normal ${MUTED}`}
-                    >
-                      টি
-                    </span>
-                  </p>
                 </li>
               );
             })}
           </ul>
 
           {allGone && (
-            <p className={`${serif} ${RICE} mt-8 text-xl leading-snug`}>
-              আজকের সব পিঠা শেষ। কাল আবার দেখা হবে।
-            </p>
+            <div className="mt-8 rounded-2xl border border-[#e3a83f]/25 bg-[#e3a83f]/[0.06] p-5">
+              <p className={`${serif} ${RICE} text-xl leading-snug`}>
+                আজকের সব পিঠা শেষ।
+              </p>
+              <p className={`mt-1 text-sm ${MUTED}`}>কাল আবার দেখা হবে।</p>
+            </div>
           )}
         </>
       )}
 
-      <p className={`mt-10 text-xs ${MUTED}`}>
+      <p className={`mt-10 flex items-center gap-2 text-xs ${MUTED}`}>
+        <span aria-hidden>↻</span>
         প্রতি ৩০ সেকেন্ডে নিজে থেকে হালনাগাদ হয়।
       </p>
     </main>
