@@ -129,6 +129,20 @@ export default function PublicStockPage() {
         <p className={`mt-3 text-sm ${MUTED}`}>
           {updated ? `সর্বশেষ হালনাগাদ ${updated}-এ` : "হালনাগাদ হচ্ছে…"}
         </p>
+
+        {data?.orderOpen && !allGone && (
+          <button
+            type="button"
+            onClick={() =>
+              document
+                .getElementById("order-form")
+                ?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+            className="mt-5 w-full rounded-xl bg-[#9ad6b0] px-4 py-3 text-lg font-medium text-[#14372b]"
+          >
+            অর্ডার করুন ↓
+          </button>
+        )}
       </header>
 
       {/* States */}
