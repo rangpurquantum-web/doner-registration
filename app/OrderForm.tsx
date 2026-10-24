@@ -70,7 +70,10 @@ export default function OrderForm({ items }: { items: Item[] }) {
 
   if (done) {
     return (
-      <section className="mt-8 rounded-2xl border border-[#9ad6b0]/25 bg-[#9ad6b0]/[0.06] p-5">
+      <section
+        id="order-form"
+        className="mt-8 scroll-mt-6 rounded-2xl border border-[#9ad6b0]/25 bg-[#9ad6b0]/[0.06] p-5"
+      >
         <p className="text-xl text-[#f3f1e8]">আবেদন পাঠানো হয়েছে</p>
         <p className="mt-1 text-sm text-[#9db8aa]">
           অ্যাপ্রুভ হলে আপনার WhatsApp-এ জানিয়ে দেওয়া হবে।
@@ -89,19 +92,39 @@ export default function OrderForm({ items }: { items: Item[] }) {
   }
 
   return (
-    <section className="mt-8 space-y-5 rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03] p-5">
+    <section
+      id="order-form"
+      className="mt-8 scroll-mt-6 space-y-5 rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03] p-5"
+    >
       <p className="text-2xl text-[#f3f1e8]">অর্ডার করুন</p>
 
       <div className="space-y-3">
         {available.map((p) => {
           const q = qty[p.name] ?? 0;
           return (
-            <div key={p.name} className="flex items-center justify-between gap-3">
+            <div
+              key={p.name}
+              className="flex items-center justify-between gap-3"
+            >
               <span className="text-lg text-[#f3f1e8]">{p.name}</span>
               <div className="flex items-center gap-3">
-                <button type="button" className={stepBtn} onClick={() => setQ(p.name, q - 1, p.remaining)}>−</button>
-                <span className="w-8 text-center text-lg tabular-nums text-[#f3f1e8]">{bn(q)}</span>
-                <button type="button" className={stepBtn} onClick={() => setQ(p.name, q + 1, p.remaining)}>+</button>
+                <button
+                  type="button"
+                  className={stepBtn}
+                  onClick={() => setQ(p.name, q - 1, p.remaining)}
+                >
+                  −
+                </button>
+                <span className="w-8 text-center text-lg tabular-nums text-[#f3f1e8]">
+                  {bn(q)}
+                </span>
+                <button
+                  type="button"
+                  className={stepBtn}
+                  onClick={() => setQ(p.name, q + 1, p.remaining)}
+                >
+                  +
+                </button>
               </div>
             </div>
           );
@@ -125,12 +148,34 @@ export default function OrderForm({ items }: { items: Item[] }) {
         ))}
       </div>
 
-      <input className={field} placeholder="আপনার নাম" value={name} onChange={(e) => setName(e.target.value)} />
-      <input className={field} placeholder="মোবাইল নম্বর (WhatsApp আছে এমন)" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      <input
+        className={field}
+        placeholder="আপনার নাম"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <input
+        className={field}
+        placeholder="মোবাইল নম্বর (WhatsApp আছে এমন)"
+        inputMode="tel"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+      />
       {type === "delivery" && (
-        <textarea className={field} rows={2} placeholder="ডেলিভারির ঠিকানা" value={address} onChange={(e) => setAddress(e.target.value)} />
+        <textarea
+          className={field}
+          rows={2}
+          placeholder="ডেলিভারির ঠিকানা"
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+        />
       )}
-      <input className={field} placeholder="কিছু জানাতে চাইলে (ঐচ্ছিক)" value={note} onChange={(e) => setNote(e.target.value)} />
+      <input
+        className={field}
+        placeholder="কিছু জানাতে চাইলে (ঐচ্ছিক)"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+      />
 
       {error && <p className="text-sm text-[#e3a83f]">{error}</p>}
 
