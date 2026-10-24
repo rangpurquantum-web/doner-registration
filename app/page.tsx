@@ -1,9 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import OrderForm from "./OrderForm";
 
 type StockItem = { name: string; remaining: number };
-type StockData = { open: boolean; items: StockItem[]; updatedAt: string };
+type StockData = {
+  open: boolean;
+  orderOpen?: boolean;
+  items: StockItem[];
+  updatedAt: string;
+};
 type Tone = "ok" | "low" | "out";
 
 const LOW_LIMIT = 5;
@@ -259,6 +265,8 @@ export default function PublicStockPage() {
               <p className={`mt-1 text-sm ${MUTED}`}>কাল আবার দেখা হবে।</p>
             </div>
           )}
+
+          {data.orderOpen && !allGone && <OrderForm items={items} />}
         </>
       )}
 
