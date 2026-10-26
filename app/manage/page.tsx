@@ -65,9 +65,13 @@ function Editor({
     if (file) fd.set("image", file, "photo.webp");
     try {
       const r = await fetch("/api/profiles", { method: "POST", body: fd });
-      const j = await r.json();
+      const text = await r.text();
+      let j: { profile?: Profile; error?: string } = {};
+      try {
+        j = JSON.parse(text);
+      } catch {}
       if (!r.ok) {
-        throw new Error(r.status === 401 ? "key ভুল" : "সেভ হয়নি");
+        throw new Error(j.error || `সেভ হয়নি (কোড ${r.status})`);
       }
       onSaved(name, j.profile as Profile);
     } catch (e) {
