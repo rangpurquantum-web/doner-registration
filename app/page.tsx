@@ -11,6 +11,7 @@ type StockData = {
   updatedAt: string;
 };
 type Tone = "ok" | "low" | "out";
+type Profile = { details: string; ingredients: string; image: string };
 
 const LOW_LIMIT = 5;
 const REFRESH_MS = 30_000;
@@ -55,6 +56,15 @@ const TONE: Record<
 export default function PublicStockPage() {
   const [data, setData] = useState<StockData | null>(null);
   const [failed, setFailed] = useState(false);
+  const [profiles, setProfiles] = useState<Record<string, Profile>>({});
+  const [viewing, setViewing] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/profiles")
+      .then((r) => r.json())
+      .then(setProfiles)
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -253,6 +263,16 @@ export default function PublicStockPage() {
                           )}
                         </div>
                       )}
+
+                      {profiles[p.name] && (
+                        <button
+                          type="button"
+                          onClick={() => setViewing(p.name)}
+                          className={`mt-3 rounded-full border border-[#f3f1e8]/20 px-3 py-1 text-xs ${RICE}`}
+                        >
+                          📷 ছবি ও বিবরণ দেখুন
+                        </button>
+                      )}
                     </div>
 
                     <p
@@ -288,6 +308,48 @@ export default function PublicStockPage() {
         <span aria-hidden>↻</span>
         প্রতি ৩০ সেকেন্ডে নিজে থেকে হালনাগাদ হয়।
       </p>
+
+      {/* Pitha profile card: the image loads only after the button is pressed */}
+      {viewing && profiles[viewing] && (
+        <div
+          onClick={() => setViewing(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#f3f1e8]/15 bg-[#14372b]"
+          >
+            {profiles[viewing].image && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={profiles[viewing].image}
+                alt={viewing}
+                className="w-full"
+              />
+            )}
+            <div className="p-5">
+              <h3 className={`${serif} ${RICE} text-2xl`}>{viewing}</h3>
+              {profiles[viewing].details && (
+                <p className={`mt-2 text-sm leading-relaxed ${RICE}`}>
+                  {profiles[viewing].details}
+                </p>
+              )}
+              {profiles[viewing].ingredients && (
+                <p className={`mt-3 text-sm ${MUTED}`}>
+                  উপকরণ: {profiles[viewing].ingredients}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setViewing(null)}
+                className="mt-5 w-full rounded-xl bg-[#9ad6b0] py-3 font-medium text-[#14372b]"
+              >
+                বন্ধ করুন
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
