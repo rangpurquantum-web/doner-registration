@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import LocationPicker, { type Coords } from "./LocationPicker";
 
 type Item = { name: string; remaining: number };
 
@@ -19,6 +20,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [loc, setLoc] = useState<Coords | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -53,6 +55,8 @@ export default function OrderForm({ items }: { items: Item[] }) {
             name: name.trim(),
             phone: p,
             address: type === "delivery" ? address.trim() : "",
+            lat: type === "delivery" ? loc?.lat : undefined,
+            lng: type === "delivery" ? loc?.lng : undefined,
             note: note.trim(),
             items: chosen,
           }),
@@ -162,13 +166,19 @@ export default function OrderForm({ items }: { items: Item[] }) {
         onChange={(e) => setPhone(e.target.value)}
       />
       {type === "delivery" && (
-        <textarea
-          className={field}
-          rows={2}
-          placeholder="ডেলিভারির ঠিকানা"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-        />
+        <>
+          <textarea
+            className={field}
+            rows={2}
+            placeholder="ডেলিভারির ঠিকানা"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+          <LocationPicker value={loc} onChange={setLoc} />
+          <p className="-mt-2 text-xs text-[#9db8aa]">
+            লোকেশন শুধু ডেলিভারির কাজে ব্যবহার করা হবে।
+          </p>
+        </>
       )}
       <input
         className={field}
