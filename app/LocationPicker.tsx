@@ -48,7 +48,7 @@ export default function LocationPicker({
     : "";
 
   return (
-    <div className="mt-3">
+    <div>
       <button
         type="button"
         onClick={locate}
