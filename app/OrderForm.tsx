@@ -42,6 +42,8 @@ export default function OrderForm({ items }: { items: Item[] }) {
     if (!/^01\d{9}$/.test(p)) return setError("সঠিক মোবাইল নম্বর দিন");
     if (type === "delivery" && !address.trim())
       return setError("ডেলিভারির ঠিকানা লিখুন");
+    if (type === "delivery" && !loc)
+      return setError("ম্যাপে আপনার ডেলিভারির জায়গায় পিন দিন");
 
     setBusy(true);
     try {
@@ -86,6 +88,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
           onClick={() => {
             setDone(false);
             setQty({});
+            setLoc(null);
           }}
           className="mt-4 text-sm text-[#9ad6b0] underline"
         >
