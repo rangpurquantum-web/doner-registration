@@ -1,19 +1,60 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import LocationPicker, { type Coords } from "./LocationPicker";
-import { roadKm, deliveryFee, TIERS } from "./delivery";
 
-type Item = { name: string; remaining: number };
+type Item = { name: string; remaining: number; price?: number };
+type Bill = {
+  subtotal: number;
+  deliveryFee: number;
+  serviceFee: number;
+  total: number;
+  km: number | null;
+};
 
 const bn = (n: number) => n.toLocaleString("bn-BD");
 const toEn = (s: string) =>
   s.replace(/[০-৯]/g, (d) => String("০১২৩৪৫৬৭৮৯".indexOf(d)));
 
+const API = process.env.NEXT_PUBLIC_API_BASE ?? "";
+
 const field =
   "w-full rounded-xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.04] px-4 py-3 text-base text-[#f3f1e8] placeholder:text-[#9db8aa] outline-none focus:border-[#9ad6b0]/60";
 const stepBtn =
   "h-10 w-10 rounded-full border border-[#f3f1e8]/20 text-xl text-[#f3f1e8] active:bg-[#f3f1e8]/10";
+
+function BillBox({ bill, type }: { bill: Bill; type: "booking" | "delivery" }) {
+  const row = "flex items-center justify-between gap-3 text-base";
+  return (
+    <div className="space-y-1.5 rounded-xl border border-[#9ad6b0]/30 bg-[#9ad6b0]/[0.08] p-4 text-[#f3f1e8]">
+      <div className={row}>
+        <span>পিঠার দাম</span>
+        <span className="tabular-nums">{bn(bill.subtotal)} টাকা</span>
+      </div>
+      {type === "delivery" && (
+        <div className={row}>
+          <span>ডেলিভারি চার্জ</span>
+          <span className="tabular-nums">{bn(bill.deliveryFee)} টাকা</span>
+        </div>
+      )}
+      <div className={row}>
+        <span>ওয়েবসাইট অপারেশন্স চার্জ</span>
+        <span className="tabular-nums">{bn(bill.serviceFee)} টাকা</span>
+      </div>
+      <div className="mt-1 border-t border-[#f3f1e8]/15 pt-2">
+        <div className={`${row} text-lg font-medium`}>
+          <span>মোট বিল</span>
+          <span className="tabular-nums">{bn(bill.total)} টাকা</span>
+        </div>
+      </div>
+      {type === "delivery" && bill.km != null && (
+        <p className="pt-1 text-xs text-[#9db8aa]">
+          দোকান থেকে দূরত্ব প্রায় {bn(bill.km)} কিমি
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function OrderForm({ items }: { items: Item[] }) {
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -25,7 +66,11 @@ export default function OrderForm({ items }: { items: Item[] }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<Bill | null | false>(false);
+
+  const [bill, setBill] = useState<Bill | null>(null);
+  const [billErr, setBillErr] = useState("");
+  const [billBusy, setBillBusy] = useState(false);
 
   const available = items.filter((i) => i.remaining > 0);
   const chosen = available
@@ -35,9 +80,59 @@ export default function OrderForm({ items }: { items: Item[] }) {
   const setQ = (n: string, v: number, max: number) =>
     setQty((s) => ({ ...s, [n]: Math.max(0, Math.min(v, max)) }));
 
-  const km = loc ? roadKm(loc.lat, loc.lng) : null;
-  const fee = km != null ? deliveryFee(km) : null;
-  const maxKm = TIERS[TIERS.length - 1].upTo;
+  // বিল আসে শপ ম্যানেজারের সার্ভার থেকে। পিঠা, ধরন বা পিন বদলালে নতুন করে আনা হয়।
+  const quoteKey = JSON.stringify({
+    type,
+    chosen,
+    lat: type === "delivery" ? loc?.lat : null,
+    lng: type === "delivery" ? loc?.lng : null,
+  });
+
+  useEffect(() => {
+    if (chosen.length === 0 || (type === "delivery" && !loc)) {
+      setBill(null);
+      setBillErr("");
+      setBillBusy(false);
+      return;
+    }
+    let dead = false;
+    setBillBusy(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API}/api/public/quote`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type,
+            items: chosen,
+            lat: type === "delivery" ? loc?.lat : undefined,
+            lng: type === "delivery" ? loc?.lng : undefined,
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (dead) return;
+        if (!res.ok) {
+          setBill(null);
+          setBillErr(json.error ?? "বিল হিসাব করা যায়নি");
+        } else {
+          setBill(json.bill as Bill);
+          setBillErr("");
+        }
+      } catch {
+        if (!dead) {
+          setBill(null);
+          setBillErr("বিল হিসাব করা যায়নি");
+        }
+      } finally {
+        if (!dead) setBillBusy(false);
+      }
+    }, 300);
+    return () => {
+      dead = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteKey]);
 
   async function submit() {
     setError("");
@@ -49,31 +144,27 @@ export default function OrderForm({ items }: { items: Item[] }) {
       return setError("ডেলিভারির ঠিকানা লিখুন");
     if (type === "delivery" && !loc)
       return setError("ম্যাপে আপনার ডেলিভারির জায়গায় পিন দিন");
-    if (type === "delivery" && fee == null)
-      return setError("দুঃখিত, এই জায়গায় ডেলিভারি দেওয়া হয় না");
+    if (billErr) return setError(billErr);
 
     setBusy(true);
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE ?? ""}/api/public/orders`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type,
-            name: name.trim(),
-            phone: p,
-            address: type === "delivery" ? address.trim() : "",
-            lat: type === "delivery" ? loc?.lat : undefined,
-            lng: type === "delivery" ? loc?.lng : undefined,
-            note: note.trim(),
-            items: chosen,
-          }),
-        },
-      );
+      const res = await fetch(`${API}/api/public/orders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+          name: name.trim(),
+          phone: p,
+          address: type === "delivery" ? address.trim() : "",
+          lat: type === "delivery" ? loc?.lat : undefined,
+          lng: type === "delivery" ? loc?.lng : undefined,
+          note: note.trim(),
+          items: chosen,
+        }),
+      });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? "অর্ডার পাঠানো যায়নি");
-      setDone(true);
+      setDone((json.bill as Bill) ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "অর্ডার পাঠানো যায়নি");
     } finally {
@@ -81,13 +172,19 @@ export default function OrderForm({ items }: { items: Item[] }) {
     }
   }
 
-  if (done) {
+  if (done !== false) {
     return (
       <section
         id="order-form"
         className="mt-8 scroll-mt-6 rounded-2xl border border-[#9ad6b0]/25 bg-[#9ad6b0]/[0.06] p-5"
       >
         <p className="text-xl text-[#f3f1e8]">আবেদন পাঠানো হয়েছে</p>
+        {done && (
+          <p className="mt-2 text-base text-[#f3f1e8]">
+            মোট বিল:{" "}
+            <span className="font-medium">{bn(done.total)} টাকা</span>
+          </p>
+        )}
         <p className="mt-1 text-sm text-[#9db8aa]">
           অ্যাপ্রুভ হলে আপনার WhatsApp-এ জানিয়ে দেওয়া হবে।
         </p>
@@ -96,6 +193,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
             setDone(false);
             setQty({});
             setLoc(null);
+            setBill(null);
           }}
           className="mt-4 text-sm text-[#9ad6b0] underline"
         >
@@ -120,7 +218,14 @@ export default function OrderForm({ items }: { items: Item[] }) {
               key={p.name}
               className="flex items-center justify-between gap-3"
             >
-              <span className="text-lg text-[#f3f1e8]">{p.name}</span>
+              <div>
+                <span className="text-lg text-[#f3f1e8]">{p.name}</span>
+                {p.price != null && (
+                  <span className="ml-2 text-sm text-[#9db8aa]">
+                    {bn(p.price)} টাকা
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -186,24 +291,12 @@ export default function OrderForm({ items }: { items: Item[] }) {
           />
           <LocationPicker value={loc} onChange={setLoc} />
 
-          {km != null && fee != null && (
-            <div className="rounded-xl border border-[#9ad6b0]/30 bg-[#9ad6b0]/[0.08] p-3">
-              <p className="text-base text-[#f3f1e8]">
-                ডেলিভারি চার্জ:{" "}
-                <span className="font-medium">{bn(fee)} টাকা</span>
-              </p>
-              <p className="mt-0.5 text-xs text-[#9db8aa]">
-                দোকান থেকে দূরত্ব প্রায় {bn(Math.round(km * 10) / 10)} কিমি
-              </p>
-            </div>
-          )}
-
-          {km != null && fee == null && (
+          {billErr && (
             <div className="rounded-xl border border-[#e3a83f]/30 bg-[#e3a83f]/[0.08] p-3">
               <p className="text-sm text-[#e3a83f]">
-                দুঃখিত, এই জায়গায় ডেলিভারি দেওয়া হয় না (প্রায়{" "}
-                {bn(Math.round(km * 10) / 10)} কিমি)। সর্বোচ্চ {bn(maxKm)} কিমি
-                পর্যন্ত ডেলিভারি দেওয়া হয়। বুকিং দিয়ে দোকান থেকে নিতে পারেন।
+                {billErr}
+                {billErr.includes("ডেলিভারি দেওয়া হয় না") &&
+                  " বুকিং দিয়ে দোকান থেকে নিতে পারেন।"}
               </p>
             </div>
           )}
@@ -219,6 +312,23 @@ export default function OrderForm({ items }: { items: Item[] }) {
         value={note}
         onChange={(e) => setNote(e.target.value)}
       />
+
+      {/* বিল */}
+      {chosen.length > 0 && (
+        <div>
+          {bill ? (
+            <div className={billBusy ? "opacity-60" : ""}>
+              <BillBox bill={bill} type={type} />
+            </div>
+          ) : type === "delivery" && !loc ? (
+            <p className="text-sm text-[#9db8aa]">
+              ম্যাপে পিন দিলে ডেলিভারি চার্জসহ মোট বিল দেখাবে।
+            </p>
+          ) : billBusy ? (
+            <p className="text-sm text-[#9db8aa]">বিল হিসাব হচ্ছে…</p>
+          ) : null}
+        </div>
+      )}
 
       {error && <p className="text-sm text-[#e3a83f]">{error}</p>}
 
