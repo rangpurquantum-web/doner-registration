@@ -22,10 +22,15 @@ type StockData = {
 };
 type Tone = "ok" | "low" | "out";
 type Profile = { details: string; ingredients: string; image: string };
+type InstallEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
 
 const LOW_LIMIT = 5;
 const REFRESH_MS = 30_000;
 const MAX_DOTS = 20;
+const INSTALL_DISMISS_KEY = "pwa-install-dismissed";
 
 const RICE = "text-[#f3f1e8]";
 const MUTED = "text-[#9db8aa]";
@@ -68,6 +73,58 @@ export default function PublicStockPage() {
   const [failed, setFailed] = useState(false);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [viewing, setViewing] = useState<string | null>(null);
+
+  const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null);
+  const [iosHint, setIosHint] = useState(false);
+  const [installHidden, setInstallHidden] = useState(true);
+
+  useEffect(() => {
+    const standalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as unknown as { standalone?: boolean }).standalone === true;
+    let dismissed = false;
+    try {
+      dismissed = localStorage.getItem(INSTALL_DISMISS_KEY) === "1";
+    } catch {}
+    if (standalone || dismissed) return;
+
+    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isIos) {
+      setIosHint(true);
+      setInstallHidden(false);
+    }
+
+    const onPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallEvent(e as InstallEvent);
+      setInstallHidden(false);
+    };
+    const onInstalled = () => {
+      setInstallEvent(null);
+      setInstallHidden(true);
+    };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+
+  const dismissInstall = () => {
+    setInstallHidden(true);
+    try {
+      localStorage.setItem(INSTALL_DISMISS_KEY, "1");
+    } catch {}
+  };
+
+  const doInstall = async () => {
+    if (!installEvent) return;
+    await installEvent.prompt();
+    await installEvent.userChoice;
+    setInstallEvent(null);
+    setInstallHidden(true);
+  };
 
   useEffect(() => {
     fetch("/api/profiles")
@@ -121,8 +178,41 @@ export default function PublicStockPage() {
 
   const allGone = items.length > 0 && items.every((p) => p.remaining <= 0);
 
+  const showInstall = !installHidden && (installEvent !== null || iosHint);
+
   return (
     <main className="mx-auto min-h-screen max-w-xl bg-[#14372b] px-6 pb-16 pt-14">
+      {/* Install bar */}
+      {showInstall && (
+        <div className="-mt-8 mb-6 flex items-center gap-3 rounded-xl border border-[#9ad6b0]/25 bg-[#9ad6b0]/10 px-3 py-2.5">
+          <span aria-hidden className="text-lg">
+            📲
+          </span>
+          <p className={`min-w-0 flex-1 text-xs leading-snug ${RICE}`}>
+            {installEvent
+              ? "অ্যাপের মতো ব্যবহার করতে হোম স্ক্রিনে ইনস্টল করুন"
+              : "ইনস্টল করতে Share (⬆️) চেপে “Add to Home Screen” দিন"}
+          </p>
+          {installEvent && (
+            <button
+              type="button"
+              onClick={doInstall}
+              className="shrink-0 rounded-lg bg-[#9ad6b0] px-3 py-1.5 text-xs font-medium text-[#14372b]"
+            >
+              ইনস্টল করুন
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={dismissInstall}
+            aria-label="বন্ধ করুন"
+            className={`shrink-0 px-1 text-base leading-none ${MUTED}`}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="pb-10">
         <div className="flex items-center justify-between">
