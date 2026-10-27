@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import OrderForm from "./OrderForm";
+import dynamic from "next/dynamic";
+
+const OrderForm = dynamic(() => import("./OrderForm"), {
+  ssr: false,
+  loading: () => (
+    <div
+      id="order-form"
+      className="mt-10 h-40 rounded-2xl bg-[#f3f1e8]/[0.04] motion-safe:animate-pulse"
+    />
+  ),
+});
 
 type StockItem = { name: string; remaining: number };
 type StockData = {
@@ -70,7 +80,6 @@ export default function PublicStockPage() {
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_BASE ?? ""}/api/public/stock`,
-        { cache: "no-store" },
       );
       if (!res.ok) throw new Error("failed");
       const json = (await res.json()) as StockData;
