@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import NotifyButton from "./NotifyButton";
 
 const OrderForm = dynamic(() => import("./OrderForm"), {
   ssr: false,
@@ -22,6 +23,7 @@ type StockData = {
 };
 type Tone = "ok" | "low" | "out";
 type Profile = { details: string; ingredients: string; image: string };
+type Notice = { text: string; active: boolean; until: string | null };
 type InstallEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
@@ -73,6 +75,7 @@ export default function PublicStockPage() {
   const [failed, setFailed] = useState(false);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [viewing, setViewing] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null);
   const [iosHint, setIosHint] = useState(false);
@@ -134,6 +137,10 @@ export default function PublicStockPage() {
   }, []);
 
   const load = useCallback(async () => {
+    fetch("/api/notice")
+      .then((r) => r.json())
+      .then((n: Notice) => setNotice(n))
+      .catch(() => {});
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_BASE ?? ""}/api/public/stock`,
@@ -179,6 +186,14 @@ export default function PublicStockPage() {
   const allGone = items.length > 0 && items.every((p) => p.remaining <= 0);
 
   const showInstall = !installHidden && (installEvent !== null || iosHint);
+
+  const shownNotice =
+    notice &&
+    notice.active &&
+    notice.text.trim() &&
+    (!notice.until || Date.now() < new Date(notice.until).getTime())
+      ? notice
+      : null;
 
   return (
     <main className="mx-auto min-h-screen max-w-xl bg-[#14372b] px-6 pb-16 pt-14">
@@ -253,6 +268,21 @@ export default function PublicStockPage() {
           </button>
         )}
       </header>
+
+      {/* Notice */}
+      {shownNotice && (
+        <section className="mb-6 rounded-2xl border border-[#e3a83f]/30 bg-[#e3a83f]/[0.08] p-4">
+          <p className="text-xs text-[#e3a83f]">📢 নোটিশ</p>
+          <p
+            className={`mt-1 whitespace-pre-line text-base leading-relaxed ${RICE}`}
+          >
+            {shownNotice.text}
+          </p>
+        </section>
+      )}
+
+      {/* Push notification opt-in */}
+      <NotifyButton />
 
       {/* States */}
       {!data && !failed && (
