@@ -126,7 +126,7 @@ export default function LocationPicker({
         disabled={busy}
         className="w-full rounded-xl border border-[#9ad6b0]/40 bg-[#9ad6b0]/10 py-3 text-[#9ad6b0] disabled:opacity-50"
       >
-        {busy ? "লোকেশন খোঁজা হচ্ছে…" : "📍 আমার বর্তমান লোকেশন নিন"}
+        {busy ? "লোকেশন খোঁজা হচ্ছে…" : "📍 লোকেশন দিতে ক্লিক করুন"}
       </button>
 
       {err && <p className="text-sm text-[#e3a83f]">{err}</p>}
