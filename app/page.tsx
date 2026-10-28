@@ -9,7 +9,7 @@ const OrderForm = dynamic(() => import("./OrderForm"), {
   loading: () => (
     <div
       id="order-form"
-      className="mt-10 h-40 rounded-2xl bg-[#f3f1e8]/[0.04] motion-safe:animate-pulse"
+      className="h-40 rounded-2xl bg-[#f3f1e8]/[0.04] motion-safe:animate-pulse"
     />
   ),
 });
@@ -76,6 +76,7 @@ export default function PublicStockPage() {
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
   const [viewing, setViewing] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
 
   const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null);
   const [iosHint, setIosHint] = useState(false);
@@ -195,6 +196,24 @@ export default function PublicStockPage() {
       ? notice
       : null;
 
+  const canOrder = Boolean(data?.orderOpen) && !allGone;
+  const cartVisible = cartOpen && canOrder;
+
+  // কার্ট খোলা থাকলে পেছনের পেজ স্ক্রল বন্ধ, Esc চাপলে কার্ট বন্ধ
+  useEffect(() => {
+    if (!cartVisible) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCartOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [cartVisible]);
+
   return (
     <main className="mx-auto min-h-screen max-w-xl bg-[#14372b] px-6 pb-16 pt-14">
       {/* Install bar */}
@@ -254,17 +273,13 @@ export default function PublicStockPage() {
           {updated ? `সর্বশেষ হালনাগাদ ${updated}-এ` : "হালনাগাদ হচ্ছে…"}
         </p>
 
-        {data?.orderOpen && !allGone && (
+        {canOrder && (
           <button
             type="button"
-            onClick={() =>
-              document
-                .getElementById("order-form")
-                ?.scrollIntoView({ behavior: "smooth", block: "start" })
-            }
+            onClick={() => setCartOpen(true)}
             className="mt-5 w-full rounded-xl bg-[#9ad6b0] px-4 py-3 text-lg font-medium text-[#14372b]"
           >
-            অর্ডার করুন ↓
+            🛒 অর্ডার করুন
           </button>
         )}
       </header>
@@ -428,8 +443,6 @@ export default function PublicStockPage() {
               <p className={`mt-1 text-sm ${MUTED}`}>কাল আবার দেখা হবে।</p>
             </div>
           )}
-
-          {data.orderOpen && !allGone && <OrderForm items={items} />}
         </>
       )}
 
@@ -437,6 +450,38 @@ export default function PublicStockPage() {
         <span aria-hidden>↻</span>
         প্রতি ৩০ সেকেন্ডে নিজে থেকে হালনাগাদ হয়।
       </p>
+
+      {/* Cart: অর্ডার ফর্ম এখানে খোলে। বন্ধ থাকলেও ফর্ম থাকে, তাই বাছাই করা পিঠা মুছে যায় না */}
+      {canOrder && (
+        <div
+          onClick={() => setCartOpen(false)}
+          className={
+            cartVisible
+              ? "fixed inset-0 z-40 flex items-end justify-center bg-black/70 sm:items-center sm:p-4"
+              : "hidden"
+          }
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[92vh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl border border-[#f3f1e8]/15 bg-[#14372b] sm:rounded-2xl"
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#f3f1e8]/10 bg-[#14372b] px-5 py-3">
+              <span className={`text-base ${RICE}`}>🛒 আপনার কার্ট</span>
+              <button
+                type="button"
+                onClick={() => setCartOpen(false)}
+                aria-label="কার্ট বন্ধ করুন"
+                className={`px-2 text-xl leading-none ${MUTED}`}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 [&>div]:mt-0 [&>section]:mt-0 [&>section]:scroll-mt-16 [&>section]:border-0 [&>section]:bg-transparent [&>section]:p-0">
+              <OrderForm items={items} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pitha profile card: the image loads only after the button is pressed */}
       {viewing && profiles[viewing] && (
