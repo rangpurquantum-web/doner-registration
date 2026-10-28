@@ -21,6 +21,7 @@ export default function LocationPicker({
   const markerRef = useRef<Marker | null>(null);
   const libRef = useRef<typeof import("leaflet") | null>(null);
   const cbRef = useRef(onChange);
+  const valueRef = useRef(value);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
@@ -28,28 +29,35 @@ export default function LocationPicker({
     cbRef.current = onChange;
   }, [onChange]);
 
-  const place = useCallback((lat: number, lng: number, accuracy?: number) => {
-    const L = libRef.current;
-    const map = mapRef.current;
-    if (!L || !map) return;
-    if (markerRef.current) {
-      markerRef.current.setLatLng([lat, lng]);
-    } else {
-      const icon = L.divIcon({
-        html: '<div style="font-size:30px;line-height:1">📍</div>',
-        className: "",
-        iconSize: [30, 30],
-        iconAnchor: [15, 28],
-      });
-      const m = L.marker([lat, lng], { icon, draggable: true }).addTo(map);
-      m.on("dragend", () => {
-        const p = m.getLatLng();
-        cbRef.current({ lat: p.lat, lng: p.lng });
-      });
-      markerRef.current = m;
-    }
-    cbRef.current({ lat, lng, accuracy });
-  }, []);
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  const place = useCallback(
+    (lat: number, lng: number, accuracy?: number, notify = true) => {
+      const L = libRef.current;
+      const map = mapRef.current;
+      if (!L || !map) return;
+      if (markerRef.current) {
+        markerRef.current.setLatLng([lat, lng]);
+      } else {
+        const icon = L.divIcon({
+          html: '<div style="font-size:30px;line-height:1">📍</div>',
+          className: "",
+          iconSize: [30, 30],
+          iconAnchor: [15, 28],
+        });
+        const m = L.marker([lat, lng], { icon, draggable: true }).addTo(map);
+        m.on("dragend", () => {
+          const p = m.getLatLng();
+          cbRef.current({ lat: p.lat, lng: p.lng });
+        });
+        markerRef.current = m;
+      }
+      if (notify) cbRef.current({ lat, lng, accuracy });
+    },
+    [],
+  );
 
   useEffect(() => {
     let dead = false;
@@ -67,6 +75,18 @@ export default function LocationPicker({
       }).addTo(map);
       map.on("click", (e) => place(e.latlng.lat, e.latlng.lng));
       mapRef.current = map;
+
+      // আগে পিন দেওয়া থাকলে কার্ট আবার খুললে সেটা ম্যাপে বসিয়ে দেওয়া হয়
+      const v = valueRef.current;
+      if (v) {
+        place(v.lat, v.lng, v.accuracy, false);
+        map.setView([v.lat, v.lng], 17);
+      }
+
+      // পপআপের ভেতরে ম্যাপ খুললে সাইজ আবার হিসাব করা দরকার
+      setTimeout(() => {
+        if (mapRef.current === map) map.invalidateSize();
+      }, 200);
     })();
     return () => {
       dead = true;
