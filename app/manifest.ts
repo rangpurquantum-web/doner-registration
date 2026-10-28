@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "আজকের পিঠা – প্রাজ্ঞ ফুড",
-    short_name: "আজকের পিঠা",
-    description: "আজকের পিঠার লাইভ স্টক ও অর্ডার",
+    name: "প্রাজ্ঞ ফুড",
+    short_name: "প্রাজ্ঞ ফুড",
+    description: "আজকের  লাইভ স্টক ও অর্ডার",
     start_url: "/",
     display: "standalone",
     lang: "bn",
