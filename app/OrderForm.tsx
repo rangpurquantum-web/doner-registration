@@ -11,6 +11,7 @@ type Bill = {
   total: number;
   km: number | null;
 };
+type OrderType = "booking" | "delivery";
 
 const MIN_QTY = 5;
 
@@ -37,8 +38,13 @@ const primaryBtn =
 const ghostBtn =
   "w-full rounded-xl border border-[#f3f1e8]/20 px-4 py-3 text-lg text-[#f3f1e8]";
 
-function Steps({ step }: { step: 1 | 2 | 3 }) {
-  const labels = ["পিঠা বাছাই", "তথ্য ও ডেলিভারি", "বিল ও আবেদন"];
+const TYPE_LABEL: Record<OrderType, string> = {
+  booking: "🏪 বুকিং (দোকান থেকে নেবেন)",
+  delivery: "🛵 ডেলিভারি",
+};
+
+function Steps({ step }: { step: 1 | 2 | 3 | 4 }) {
+  const labels = ["পিঠা বাছাই", "নেওয়ার ধরন", "আপনার তথ্য", "বিল ও আবেদন"];
   return (
     <ol className="flex items-start gap-2">
       {labels.map((l, i) => {
@@ -66,7 +72,7 @@ function Steps({ step }: { step: 1 | 2 | 3 }) {
   );
 }
 
-function BillBox({ bill, type }: { bill: Bill; type: "booking" | "delivery" }) {
+function BillBox({ bill, type }: { bill: Bill; type: OrderType }) {
   const row = "flex items-center justify-between gap-3 text-base";
   return (
     <div className="space-y-1.5 rounded-xl border border-[#9ad6b0]/30 bg-[#9ad6b0]/[0.08] p-4 text-[#f3f1e8]">
@@ -100,9 +106,10 @@ function BillBox({ bill, type }: { bill: Bill; type: "booking" | "delivery" }) {
 }
 
 export default function OrderForm({ items }: { items: Item[] }) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [qty, setQty] = useState<Record<string, number>>({});
-  const [type, setType] = useState<"booking" | "delivery">("booking");
+  // শুরুতে কিছুই বাছাই করা থাকে না, কাস্টমারকে নিজে বেছে নিতে হয়
+  const [type, setType] = useState<OrderType | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [phone2, setPhone2] = useState("");
@@ -124,9 +131,12 @@ export default function OrderForm({ items }: { items: Item[] }) {
   const totalQty = chosen.reduce((s, c) => s + c.qty, 0);
 
   const priceOf = new Map(
-    available.filter((i) => i.price != null).map((i) => [i.name, i.price as number]),
+    available
+      .filter((i) => i.price != null)
+      .map((i) => [i.name, i.price as number]),
   );
-  const allPriced = chosen.length > 0 && chosen.every((c) => priceOf.has(c.name));
+  const allPriced =
+    chosen.length > 0 && chosen.every((c) => priceOf.has(c.name));
   const subtotalLocal = chosen.reduce(
     (s, c) => s + (priceOf.get(c.name) ?? 0) * c.qty,
     0,
@@ -139,7 +149,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
   const setQ = (n: string, v: number, max: number) =>
     setQty((s) => ({ ...s, [n]: Math.max(0, Math.min(v, max)) }));
 
-  function goStep(n: 1 | 2 | 3) {
+  function goStep(n: 1 | 2 | 3 | 4) {
     setError("");
     setStep(n);
     setTimeout(() => {
@@ -158,7 +168,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
   });
 
   useEffect(() => {
-    if (chosen.length === 0 || (type === "delivery" && !loc)) {
+    if (!type || chosen.length === 0 || (type === "delivery" && !loc)) {
       setBill(null);
       setBillErr("");
       setBillBusy(false);
@@ -213,6 +223,13 @@ export default function OrderForm({ items }: { items: Item[] }) {
 
   function next2() {
     setError("");
+    if (!type)
+      return setError("বুকিং না ডেলিভারি, একটি বেছে নিন");
+    goStep(3);
+  }
+
+  function next3() {
+    setError("");
     if (!name.trim()) return setError("আপনার নাম লিখুন");
     if (!phoneOk)
       return setError("সঠিক মোবাইল নম্বর দিন (যেমন ০১৭১২৩৪৫৬৭৮)");
@@ -222,7 +239,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
     if (type === "delivery" && !loc)
       return setError("ম্যাপে আপনার ডেলিভারির জায়গায় পিন দিন");
     if (billErr) return setError(billErr);
-    goStep(3);
+    goStep(4);
   }
 
   async function submit() {
@@ -232,6 +249,10 @@ export default function OrderForm({ items }: { items: Item[] }) {
       return setError(
         `একটি অর্ডারে কমপক্ষে ${bn(MIN_QTY)}টি পিঠা নিতে হবে (স্টক বদলে গেছে হতে পারে)`,
       );
+    }
+    if (!type) {
+      setStep(2);
+      return setError("বুকিং না ডেলিভারি, একটি বেছে নিন");
     }
     if (!name.trim()) return setError("আপনার নাম লিখুন");
     if (!phoneOk) return setError("সঠিক মোবাইল নম্বর দিন");
@@ -287,6 +308,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
           onClick={() => {
             setDone(false);
             setQty({});
+            setType(null);
             setLoc(null);
             setBill(null);
             setPhone2("");
@@ -386,25 +408,89 @@ export default function OrderForm({ items }: { items: Item[] }) {
         </>
       )}
 
-      {/* ধাপ ২: তথ্য ও ডেলিভারি */}
+      {/* ধাপ ২: নেওয়ার ধরন (কোনটাই আগে থেকে বাছাই করা নেই) */}
       {step === 2 && (
         <>
-          <div className="grid grid-cols-2 gap-2">
-            {(["booking", "delivery"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setType(t)}
-                className={`rounded-xl border px-3 py-3 text-base ${
-                  type === t
-                    ? "border-[#9ad6b0]/60 bg-[#9ad6b0]/10 text-[#f3f1e8]"
-                    : "border-[#f3f1e8]/15 text-[#9db8aa]"
-                }`}
-              >
-                {t === "booking" ? "বুকিং (দোকান থেকে নেব)" : "ডেলিভারি"}
-              </button>
-            ))}
+          <p className="text-lg text-[#f3f1e8]">পিঠা কীভাবে নিতে চান?</p>
+
+          <div className="space-y-3">
+            {(
+              [
+                {
+                  t: "booking",
+                  title: "🏪 বুকিং",
+                  sub: "দোকানে এসে নিজে নিয়ে যাব",
+                  note: "আপনাকে নিজে দোকানে এসে নিতে হবে। ডেলিভারি চার্জ লাগবে না।",
+                },
+                {
+                  t: "delivery",
+                  title: "🛵 ডেলিভারি",
+                  sub: "আমার ঠিকানায় পৌঁছে দিন",
+                  note: "ঠিকানা ও ম্যাপে পিন লাগবে। দূরত্ব অনুযায়ী ডেলিভারি চার্জ যোগ হবে।",
+                },
+              ] as const
+            ).map((o) => {
+              const on = type === o.t;
+              return (
+                <button
+                  key={o.t}
+                  type="button"
+                  onClick={() => {
+                    setType(o.t);
+                    setError("");
+                  }}
+                  className={`w-full rounded-2xl border p-4 text-left ${
+                    on
+                      ? "border-[#9ad6b0]/70 bg-[#9ad6b0]/10"
+                      : "border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03]"
+                  }`}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="text-xl text-[#f3f1e8]">{o.title}</span>
+                    <span
+                      className={`flex h-5 w-5 items-center justify-center rounded-full border text-[11px] ${
+                        on
+                          ? "border-[#9ad6b0] bg-[#9ad6b0] text-[#14372b]"
+                          : "border-[#f3f1e8]/30 text-transparent"
+                      }`}
+                      aria-hidden
+                    >
+                      ✓
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-base text-[#f3f1e8]">
+                    {o.sub}
+                  </span>
+                  <span className="mt-1 block text-xs text-[#9db8aa]">
+                    {o.note}
+                  </span>
+                </button>
+              );
+            })}
           </div>
+
+          {error && <p className="text-sm text-[#e3a83f]">{error}</p>}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => goStep(1)} className={ghostBtn}>
+              ← পিছনে
+            </button>
+            <button type="button" onClick={next2} className={primaryBtn}>
+              পরের ধাপ →
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ধাপ ৩: আপনার তথ্য */}
+      {step === 3 && (
+        <>
+          {type && (
+            <p className="rounded-xl border border-[#f3f1e8]/15 px-3 py-2 text-sm text-[#9db8aa]">
+              নেওয়ার ধরন:{" "}
+              <span className="text-[#f3f1e8]">{TYPE_LABEL[type]}</span>
+            </p>
+          )}
 
           <input
             className={field}
@@ -488,23 +574,32 @@ export default function OrderForm({ items }: { items: Item[] }) {
           {error && <p className="text-sm text-[#e3a83f]">{error}</p>}
 
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => goStep(1)} className={ghostBtn}>
+            <button type="button" onClick={() => goStep(2)} className={ghostBtn}>
               ← পিছনে
             </button>
-            <button
-              type="button"
-              onClick={next2}
-              className="w-full rounded-xl bg-[#9ad6b0] px-4 py-3 text-lg font-medium text-[#14372b]"
-            >
+            <button type="button" onClick={next3} className={primaryBtn}>
               পরের ধাপ →
             </button>
           </div>
         </>
       )}
 
-      {/* ধাপ ৩: বিল ও আবেদন */}
-      {step === 3 && (
+      {/* ধাপ ৪: বিল ও আবেদন */}
+      {step === 4 && (
         <>
+          {type && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-[#9ad6b0]/30 bg-[#9ad6b0]/[0.08] px-4 py-3">
+              <span className="text-lg text-[#f3f1e8]">{TYPE_LABEL[type]}</span>
+              <button
+                type="button"
+                onClick={() => goStep(2)}
+                className="shrink-0 text-sm text-[#9ad6b0] underline"
+              >
+                বদলান
+              </button>
+            </div>
+          )}
+
           <div className="space-y-2 rounded-xl border border-[#f3f1e8]/15 p-4 text-sm text-[#f3f1e8]">
             {chosen.map((c) => (
               <div key={c.name} className="flex items-center justify-between">
@@ -514,9 +609,6 @@ export default function OrderForm({ items }: { items: Item[] }) {
             ))}
             <div className="mt-2 space-y-1 border-t border-[#f3f1e8]/15 pt-2 text-[#9db8aa]">
               <p>
-                {type === "delivery" ? "ডেলিভারি" : "বুকিং (দোকান থেকে নেবেন)"}
-              </p>
-              <p>
                 {name.trim()} · {toBnDigits(p)}
               </p>
               {type === "delivery" && address.trim() && <p>{address.trim()}</p>}
@@ -524,7 +616,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
             </div>
           </div>
 
-          {bill ? (
+          {type && bill ? (
             <div className={billBusy ? "opacity-60" : ""}>
               <BillBox bill={bill} type={type} />
             </div>
@@ -537,7 +629,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
           {error && <p className="text-sm text-[#e3a83f]">{error}</p>}
 
           <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => goStep(2)} className={ghostBtn}>
+            <button type="button" onClick={() => goStep(3)} className={ghostBtn}>
               ← পিছনে
             </button>
             <button
