@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 
 type Profile = { details: string; ingredients: string; image: string };
 type Profiles = Record<string, Profile>;
+type Notice = { text: string; active: boolean; until: string | null };
+
+const toEn = (s: string) =>
+  s.replace(/[০-৯]/g, (d) => String("০১২৩৪৫৬৭৮৯".indexOf(d)));
 
 async function compress(file: File): Promise<Blob> {
   const bmp = await createImageBitmap(file);
@@ -137,6 +141,209 @@ function Editor({
   );
 }
 
+function NoticeSection({ adminKey }: { adminKey: string }) {
+  const [text, setText] = useState("");
+  const [hours, setHours] = useState("");
+  const [active, setActive] = useState(false);
+  const [until, setUntil] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/api/notice", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((n: Notice) => {
+        setText(n.text ?? "");
+        setActive(!!n.active);
+        setUntil(n.until ?? null);
+      })
+      .catch(() => {});
+  }, []);
+
+  async function save(on: boolean) {
+    setBusy(true);
+    setMsg("");
+    try {
+      const r = await fetch("/api/notice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: adminKey,
+          text,
+          active: on,
+          hours: hours ? Number(toEn(hours)) : 0,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `সেভ হয়নি (কোড ${r.status})`);
+      setActive(j.notice.active);
+      setUntil(j.notice.until);
+      setMsg(
+        j.notice.active
+          ? "নোটিশ লাইভ সাইটে চালু হয়েছে"
+          : "নোটিশ বন্ধ করা হয়েছে",
+      );
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const expired = !!until && new Date(until).getTime() < Date.now();
+  const live = active && !expired;
+
+  return (
+    <section className="mt-8 rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.04] p-5">
+      <h2 className="text-2xl">📢 নোটিশ</h2>
+      <p className="mt-1 text-sm text-[#9db8aa]">
+        {live
+          ? `এখন লাইভ সাইটে দেখানো হচ্ছে${
+              until
+                ? ` (${new Date(until).toLocaleString("bn-BD", {
+                    timeZone: "Asia/Dhaka",
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })} পর্যন্ত)`
+                : ""
+            }`
+          : expired
+            ? "মেয়াদ শেষ হয়ে গেছে, এখন দেখানো হচ্ছে না"
+            : "এখন দেখানো হচ্ছে না"}
+      </p>
+
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        maxLength={600}
+        placeholder="নোটিশ লিখুন (যেমন: আজ বিকাল ৪টায় বিক্রি শুরু হবে)"
+        className="mt-3 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+      />
+      <input
+        value={hours}
+        onChange={(e) => setHours(e.target.value)}
+        inputMode="numeric"
+        placeholder="কত ঘণ্টা দেখাবে? (ফাঁকা = আমি বন্ধ না করা পর্যন্ত)"
+        className="mt-2 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+      />
+
+      {msg && <p className="mt-3 text-sm text-[#e3a83f]">{msg}</p>}
+
+      <div className="mt-4 flex gap-3">
+        <button
+          onClick={() => save(false)}
+          disabled={busy}
+          className="flex-1 rounded-xl border border-[#f3f1e8]/20 py-3 disabled:opacity-50"
+        >
+          বন্ধ করুন
+        </button>
+        <button
+          onClick={() => save(true)}
+          disabled={busy || !text.trim()}
+          className="flex-1 rounded-xl bg-[#9ad6b0] py-3 font-medium text-[#14372b] disabled:opacity-50"
+        >
+          {busy ? "সেভ হচ্ছে…" : "চালু করুন"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function NotifySection({ adminKey }: { adminKey: string }) {
+  const [title, setTitle] = useState("আজকের পিঠা");
+  const [body, setBody] = useState("");
+  const [count, setCount] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    if (!adminKey) return;
+    fetch(`/api/push/send?key=${encodeURIComponent(adminKey)}`, {
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((j) => setCount(typeof j.count === "number" ? j.count : null))
+      .catch(() => {});
+  }, [adminKey]);
+
+  async function send() {
+    setMsg("");
+    if (!body.trim()) return setMsg("কী লিখে পাঠাবেন তা লিখুন");
+    if (!window.confirm(`${count ?? "সব"} জনকে নোটিফিকেশন পাঠাবেন?`)) return;
+    setBusy(true);
+    try {
+      const r = await fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: adminKey, title, body }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `পাঠানো যায়নি (কোড ${r.status})`);
+      setMsg(`${j.sent} জনকে পাঠানো হয়েছে`);
+      if (j.removed > 0) setCount((c) => (c == null ? c : c - j.removed));
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-6 rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.04] p-5">
+      <h2 className="text-2xl">🔔 নোটিফিকেশন</h2>
+      <p className="mt-1 text-sm text-[#9db8aa]">
+        {count != null
+          ? `${count} জন নোটিফিকেশন চালু করেছেন`
+          : "যারা চালু করেছেন তাদের ফোনে যাবে"}
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setBody("আজকের পিঠা বিক্রি শুরু হয়েছে। এখনই স্টক দেখুন!")}
+          className="rounded-full border border-[#f3f1e8]/20 px-3 py-1 text-xs"
+        >
+          🟢 বিক্রি শুরু হয়েছে
+        </button>
+        <button
+          type="button"
+          onClick={() => setBody("আজকের মতো বিক্রি শেষ। কাল আবার দেখা হবে।")}
+          className="rounded-full border border-[#f3f1e8]/20 px-3 py-1 text-xs"
+        >
+          🔴 আজকের মতো শেষ
+        </button>
+      </div>
+
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        maxLength={80}
+        placeholder="শিরোনাম"
+        className="mt-3 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+      />
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        rows={2}
+        maxLength={200}
+        placeholder="মেসেজ লিখুন"
+        className="mt-2 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+      />
+
+      {msg && <p className="mt-3 text-sm text-[#e3a83f]">{msg}</p>}
+
+      <button
+        onClick={send}
+        disabled={busy}
+        className="mt-4 w-full rounded-xl bg-[#9ad6b0] py-3 font-medium text-[#14372b] disabled:opacity-50"
+      >
+        {busy ? "পাঠানো হচ্ছে…" : "সবাইকে পাঠান"}
+      </button>
+    </section>
+  );
+}
+
 export default function ManagePage() {
   const [adminKey, setAdminKey] = useState("");
   const [names, setNames] = useState<string[]>([]);
@@ -166,7 +373,17 @@ export default function ManagePage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-xl bg-[#14372b] px-6 pb-16 pt-12 text-[#f3f1e8]">
-      <h1 className="text-3xl">পিঠার প্রোফাইল</h1>
+      <h1 className="text-3xl">ম্যানেজ</h1>
+      {!adminKey && (
+        <p className="mt-2 text-sm text-[#e3a83f]">
+          লিংকের শেষে ?key=আপনার-চাবি না থাকলে সেভ হবে না।
+        </p>
+      )}
+
+      <NoticeSection adminKey={adminKey} />
+      <NotifySection adminKey={adminKey} />
+
+      <h2 className="mt-10 text-2xl">পিঠার প্রোফাইল</h2>
       <p className="mt-2 text-sm text-[#9db8aa]">
         পিঠায় চাপ দিয়ে ছবি ও বিবরণ দিন।
       </p>
