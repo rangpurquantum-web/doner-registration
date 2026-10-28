@@ -1,529 +1,654 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import dynamic from "next/dynamic";
-import NotifyButton from "./NotifyButton";
+import { useEffect, useState } from "react";
+import LocationPicker, { type Coords } from "./LocationPicker";
 
-const OrderForm = dynamic(() => import("./OrderForm"), {
-  ssr: false,
-  loading: () => (
-    <div
-      id="order-form"
-      className="h-40 rounded-2xl bg-[#f3f1e8]/[0.04] motion-safe:animate-pulse"
-    />
-  ),
-});
-
-type StockItem = { name: string; remaining: number };
-type StockData = {
-  open: boolean;
-  orderOpen?: boolean;
-  items: StockItem[];
-  updatedAt: string;
+type Item = { name: string; remaining: number; price?: number };
+type Bill = {
+  subtotal: number;
+  deliveryFee: number;
+  serviceFee: number;
+  total: number;
+  km: number | null;
 };
-type Tone = "ok" | "low" | "out";
-type Profile = { details: string; ingredients: string; image: string };
-type Notice = { text: string; active: boolean; until: string | null };
-type InstallEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-};
+type OrderType = "booking" | "delivery";
 
-const LOW_LIMIT = 5;
-const REFRESH_MS = 30_000;
-const MAX_DOTS = 20;
-const INSTALL_DISMISS_KEY = "pwa-install-dismissed";
-
-const RICE = "text-[#f3f1e8]";
-const MUTED = "text-[#9db8aa]";
-const serif = "[font-family:var(--font-sans-bn),system-ui,sans-serif]";
+const MIN_QTY = 5;
 
 const bn = (n: number) => n.toLocaleString("bn-BD");
+const toEn = (s: string) =>
+  s.replace(/[০-৯]/g, (d) => String("০১২৩৪৫৬৭৮৯".indexOf(d)));
+const toBnDigits = (s: string) =>
+  s.replace(/\d/g, (d) => "০১২৩৪৫৬৭৮৯"[Number(d)]);
 
-function toneOf(n: number): Tone {
-  if (n <= 0) return "out";
-  if (n <= LOW_LIMIT) return "low";
-  return "ok";
+// +৮৮০ / ৮৮০ / স্পেস / ড্যাশ সরিয়ে ০১XXXXXXXXX বানায়
+function normPhone(s: string) {
+  return toEn(s).replace(/[\s-]/g, "").replace(/^\+?880/, "0");
 }
+const PHONE_RE = /^01[3-9]\d{8}$/;
 
-const TONE: Record<
-  Tone,
-  { label: string; text: string; dot: string; badgeBg: string }
-> = {
-  ok: {
-    label: "আছে",
-    text: "text-[#9ad6b0]",
-    dot: "bg-[#9ad6b0]",
-    badgeBg: "bg-[#9ad6b0]/10 border-[#9ad6b0]/20",
-  },
-  low: {
-    label: "কম আছে",
-    text: "text-[#e3a83f]",
-    dot: "bg-[#e3a83f]",
-    badgeBg: "bg-[#e3a83f]/10 border-[#e3a83f]/20",
-  },
-  out: {
-    label: "শেষ",
-    text: "text-[#7f988b]",
-    dot: "",
-    badgeBg: "bg-transparent border-[#7f988b]/20",
-  },
+const API = process.env.NEXT_PUBLIC_API_BASE ?? "";
+
+const field =
+  "w-full rounded-xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.04] px-4 py-3 text-base text-[#f3f1e8] placeholder:text-[#9db8aa] outline-none focus:border-[#9ad6b0]/60";
+const stepBtn =
+  "h-10 w-10 rounded-full border border-[#f3f1e8]/20 text-xl text-[#f3f1e8] active:bg-[#f3f1e8]/10";
+const primaryBtn =
+  "w-full rounded-xl bg-[#9ad6b0] px-4 py-3 text-lg font-medium text-[#14372b] disabled:opacity-60";
+const ghostBtn =
+  "w-full rounded-xl border border-[#f3f1e8]/20 px-4 py-3 text-lg text-[#f3f1e8]";
+
+const TYPE_LABEL: Record<OrderType, string> = {
+  booking: "🏪 বুকিং (দোকান থেকে নেবেন)",
+  delivery: "🛵 ডেলিভারি",
 };
 
-export default function PublicStockPage() {
-  const [data, setData] = useState<StockData | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [profiles, setProfiles] = useState<Record<string, Profile>>({});
-  const [viewing, setViewing] = useState<string | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
-  const [cartOpen, setCartOpen] = useState(false);
+function Steps({ step }: { step: 1 | 2 | 3 | 4 }) {
+  const labels = ["পিঠা বাছাই", "নেওয়ার ধরন", "আপনার তথ্য", "বিল ও আবেদন"];
+  return (
+    <ol className="flex items-start gap-2">
+      {labels.map((l, i) => {
+        const n = i + 1;
+        const active = n === step;
+        const passed = n < step;
+        return (
+          <li key={l} className="flex flex-1 flex-col gap-1.5">
+            <span
+              className={`h-1 rounded-full ${
+                active || passed ? "bg-[#9ad6b0]" : "bg-[#f3f1e8]/15"
+              }`}
+            />
+            <span
+              className={`text-[11px] leading-tight ${
+                active ? "text-[#f3f1e8]" : "text-[#9db8aa]"
+              }`}
+            >
+              {bn(n)}. {l}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
-  const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null);
-  const [iosHint, setIosHint] = useState(false);
-  const [installHidden, setInstallHidden] = useState(true);
+function BillBox({ bill, type }: { bill: Bill; type: OrderType }) {
+  const row = "flex items-center justify-between gap-3 text-base";
+  return (
+    <div className="space-y-1.5 rounded-xl border border-[#9ad6b0]/30 bg-[#9ad6b0]/[0.08] p-4 text-[#f3f1e8]">
+      <div className={row}>
+        <span>পিঠার দাম</span>
+        <span className="tabular-nums">{bn(bill.subtotal)} টাকা</span>
+      </div>
+      {type === "delivery" && (
+        <div className={row}>
+          <span>ডেলিভারি চার্জ</span>
+          <span className="tabular-nums">{bn(bill.deliveryFee)} টাকা</span>
+        </div>
+      )}
+      <div className={row}>
+        <span>ওয়েবসাইট অপারেশন্স চার্জ</span>
+        <span className="tabular-nums">{bn(bill.serviceFee)} টাকা</span>
+      </div>
+      <div className="mt-1 border-t border-[#f3f1e8]/15 pt-2">
+        <div className={`${row} text-lg font-medium`}>
+          <span>মোট বিল</span>
+          <span className="tabular-nums">{bn(bill.total)} টাকা</span>
+        </div>
+      </div>
+      {type === "delivery" && bill.km != null && (
+        <p className="pt-1 text-xs text-[#9db8aa]">
+          দোকান থেকে দূরত্ব প্রায় {bn(bill.km)} কিমি
+        </p>
+      )}
+    </div>
+  );
+}
+
+export default function OrderForm({ items }: { items: Item[] }) {
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [qty, setQty] = useState<Record<string, number>>({});
+  // শুরুতে কিছুই বাছাই করা থাকে না, কাস্টমারকে নিজে বেছে নিতে হয়
+  const [type, setType] = useState<OrderType | null>(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [phone2, setPhone2] = useState("");
+  const [address, setAddress] = useState("");
+  const [loc, setLoc] = useState<Coords | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState<Bill | null | false>(false);
+
+  const [bill, setBill] = useState<Bill | null>(null);
+  const [billErr, setBillErr] = useState("");
+  const [billBusy, setBillBusy] = useState(false);
+
+  const available = items.filter((i) => i.remaining > 0);
+  const chosen = available
+    .filter((i) => (qty[i.name] ?? 0) > 0)
+    .map((i) => ({ name: i.name, qty: Math.min(qty[i.name], i.remaining) }));
+  const totalQty = chosen.reduce((s, c) => s + c.qty, 0);
+
+  const priceOf = new Map(
+    available
+      .filter((i) => i.price != null)
+      .map((i) => [i.name, i.price as number]),
+  );
+  const allPriced =
+    chosen.length > 0 && chosen.every((c) => priceOf.has(c.name));
+  const subtotalLocal = chosen.reduce(
+    (s, c) => s + (priceOf.get(c.name) ?? 0) * c.qty,
+    0,
+  );
+
+  const p = normPhone(phone);
+  const phoneOk = PHONE_RE.test(p);
+  const phoneMatch = normPhone(phone2) === p;
+
+  const setQ = (n: string, v: number, max: number) =>
+    setQty((s) => ({ ...s, [n]: Math.max(0, Math.min(v, max)) }));
+
+  function goStep(n: 1 | 2 | 3 | 4) {
+    setError("");
+    setStep(n);
+    setTimeout(() => {
+      document
+        .getElementById("order-form")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
+  // বিল আসে শপ ম্যানেজারের সার্ভার থেকে। পিঠা, ধরন বা পিন বদলালে নতুন করে আনা হয়।
+  const quoteKey = JSON.stringify({
+    type,
+    chosen,
+    lat: type === "delivery" ? loc?.lat : null,
+    lng: type === "delivery" ? loc?.lng : null,
+  });
 
   useEffect(() => {
-    const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (navigator as unknown as { standalone?: boolean }).standalone === true;
-    let dismissed = false;
-    try {
-      dismissed = localStorage.getItem(INSTALL_DISMISS_KEY) === "1";
-    } catch {}
-    if (standalone || dismissed) return;
-
-    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    if (isIos) {
-      setIosHint(true);
-      setInstallHidden(false);
+    if (!type || chosen.length === 0 || (type === "delivery" && !loc)) {
+      setBill(null);
+      setBillErr("");
+      setBillBusy(false);
+      return;
     }
-
-    const onPrompt = (e: Event) => {
-      e.preventDefault();
-      setInstallEvent(e as InstallEvent);
-      setInstallHidden(false);
-    };
-    const onInstalled = () => {
-      setInstallEvent(null);
-      setInstallHidden(true);
-    };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    window.addEventListener("appinstalled", onInstalled);
+    let dead = false;
+    setBillBusy(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API}/api/public/quote`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type,
+            items: chosen,
+            lat: type === "delivery" ? loc?.lat : undefined,
+            lng: type === "delivery" ? loc?.lng : undefined,
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (dead) return;
+        if (!res.ok) {
+          setBill(null);
+          setBillErr(json.error ?? "বিল হিসাব করা যায়নি");
+        } else {
+          setBill(json.bill as Bill);
+          setBillErr("");
+        }
+      } catch {
+        if (!dead) {
+          setBill(null);
+          setBillErr("বিল হিসাব করা যায়নি");
+        }
+      } finally {
+        if (!dead) setBillBusy(false);
+      }
+    }, 300);
     return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
+      dead = true;
+      clearTimeout(timer);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteKey]);
 
-  const dismissInstall = () => {
-    setInstallHidden(true);
-    try {
-      localStorage.setItem(INSTALL_DISMISS_KEY, "1");
-    } catch {}
-  };
+  function next1() {
+    setError("");
+    if (chosen.length === 0) return setError("কমপক্ষে একটি পিঠা বাছাই করুন");
+    if (totalQty < MIN_QTY)
+      return setError(`একটি অর্ডারে কমপক্ষে ${bn(MIN_QTY)}টি পিঠা নিতে হবে`);
+    goStep(2);
+  }
 
-  const doInstall = async () => {
-    if (!installEvent) return;
-    await installEvent.prompt();
-    await installEvent.userChoice;
-    setInstallEvent(null);
-    setInstallHidden(true);
-  };
+  function next2() {
+    setError("");
+    if (!type) return setError("বুকিং না ডেলিভারি, একটি বেছে নিন");
+    if (type === "delivery") {
+      if (!address.trim()) return setError("ডেলিভারির ঠিকানা লিখুন");
+      if (!loc) return setError("ম্যাপে আপনার ডেলিভারির জায়গায় পিন দিন");
+      if (billErr) return setError(billErr);
+    }
+    goStep(3);
+  }
 
-  useEffect(() => {
-    fetch("/api/profiles")
-      .then((r) => r.json())
-      .then(setProfiles)
-      .catch(() => {});
-  }, []);
+  function next3() {
+    setError("");
+    if (!name.trim()) return setError("আপনার নাম লিখুন");
+    if (!phoneOk)
+      return setError("সঠিক মোবাইল নম্বর দিন (যেমন ০১৭১২৩৪৫৬৭৮)");
+    if (!phoneMatch) return setError("দুটি নম্বর মেলেনি, আবার দেখুন");
+    goStep(4);
+  }
 
-  const load = useCallback(async () => {
-    fetch("/api/notice")
-      .then((r) => r.json())
-      .then((n: Notice) => setNotice(n))
-      .catch(() => {});
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE ?? ""}/api/public/stock`,
+  async function submit() {
+    setError("");
+    if (chosen.length === 0 || totalQty < MIN_QTY) {
+      setStep(1);
+      return setError(
+        `একটি অর্ডারে কমপক্ষে ${bn(MIN_QTY)}টি পিঠা নিতে হবে (স্টক বদলে গেছে হতে পারে)`,
       );
-      if (!res.ok) throw new Error("failed");
-      const json = (await res.json()) as StockData;
-      setData(json);
-      setFailed(false);
-    } catch {
-      setFailed(true);
     }
-  }, []);
+    if (!type) {
+      setStep(2);
+      return setError("বুকিং না ডেলিভারি, একটি বেছে নিন");
+    }
+    if (type === "delivery" && (!address.trim() || !loc)) {
+      setStep(2);
+      return setError("ডেলিভারির ঠিকানা লিখে ম্যাপে পিন দিন");
+    }
+    if (!name.trim()) {
+      setStep(3);
+      return setError("আপনার নাম লিখুন");
+    }
+    if (!phoneOk) {
+      setStep(3);
+      return setError("সঠিক মোবাইল নম্বর দিন");
+    }
+    if (billErr) return setError(billErr);
 
-  useEffect(() => {
-    load();
-    const timer = setInterval(load, REFRESH_MS);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") load();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [load]);
+    setBusy(true);
+    try {
+      const res = await fetch(`${API}/api/public/orders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+          name: name.trim(),
+          phone: p,
+          address: type === "delivery" ? address.trim() : "",
+          lat: type === "delivery" ? loc?.lat : undefined,
+          lng: type === "delivery" ? loc?.lng : undefined,
+          note: note.trim(),
+          items: chosen,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "অর্ডার পাঠানো যায়নি");
+      setDone((json.bill as Bill) ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "অর্ডার পাঠানো যায়নি");
+    } finally {
+      setBusy(false);
+    }
+  }
 
-  const items = data
-    ? [...data.items].sort((a, b) => {
-        const aEnd = a.remaining <= 0 ? 1 : 0;
-        const bEnd = b.remaining <= 0 ? 1 : 0;
-        return aEnd - bEnd || a.name.localeCompare(b.name);
-      })
-    : [];
-
-  const updated = data
-    ? new Date(data.updatedAt).toLocaleTimeString("bn-BD", {
-        hour: "numeric",
-        minute: "2-digit",
-        timeZone: "Asia/Dhaka",
-      })
-    : null;
-
-  const allGone = items.length > 0 && items.every((p) => p.remaining <= 0);
-
-  const showInstall = !installHidden && (installEvent !== null || iosHint);
-
-  const shownNotice =
-    notice &&
-    notice.active &&
-    notice.text.trim() &&
-    (!notice.until || Date.now() < new Date(notice.until).getTime())
-      ? notice
-      : null;
-
-  const canOrder = Boolean(data?.orderOpen) && !allGone;
-  const cartVisible = cartOpen && canOrder;
-
-  // কার্ট খোলা থাকলে পেছনের পেজ স্ক্রল বন্ধ, Esc চাপলে কার্ট বন্ধ
-  useEffect(() => {
-    if (!cartVisible) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setCartOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [cartVisible]);
+  if (done !== false) {
+    return (
+      <section
+        id="order-form"
+        className="mt-8 scroll-mt-6 rounded-2xl border border-[#9ad6b0]/25 bg-[#9ad6b0]/[0.06] p-5"
+      >
+        <p className="text-xl text-[#f3f1e8]">আবেদন পাঠানো হয়েছে</p>
+        {done && (
+          <p className="mt-2 text-base text-[#f3f1e8]">
+            মোট বিল:{" "}
+            <span className="font-medium">{bn(done.total)} টাকা</span>
+          </p>
+        )}
+        <p className="mt-1 text-sm text-[#9db8aa]">
+          অ্যাপ্রুভ হলে আপনার WhatsApp-এ জানিয়ে দেওয়া হবে।
+        </p>
+        <button
+          onClick={() => {
+            setDone(false);
+            setQty({});
+            setType(null);
+            setLoc(null);
+            setBill(null);
+            setPhone2("");
+            setStep(1);
+          }}
+          className="mt-4 text-sm text-[#9ad6b0] underline"
+        >
+          আরেকটি অর্ডার করুন
+        </button>
+      </section>
+    );
+  }
 
   return (
-    <main className="mx-auto min-h-screen max-w-xl bg-[#14372b] px-6 pb-16 pt-14">
-      {/* Install bar */}
-      {showInstall && (
-        <div className="-mt-8 mb-6 flex items-center gap-3 rounded-xl border border-[#9ad6b0]/25 bg-[#9ad6b0]/10 px-3 py-2.5">
-          <span aria-hidden className="text-lg">
-            📲
-          </span>
-          <p className={`min-w-0 flex-1 text-xs leading-snug ${RICE}`}>
-            {installEvent
-              ? "অ্যাপের মতো ব্যবহার করতে হোম স্ক্রিনে ইনস্টল করুন"
-              : "ইনস্টল করতে Share (⬆️) চেপে “Add to Home Screen” দিন"}
-          </p>
-          {installEvent && (
-            <button
-              type="button"
-              onClick={doInstall}
-              className="shrink-0 rounded-lg bg-[#9ad6b0] px-3 py-1.5 text-xs font-medium text-[#14372b]"
-            >
-              ইনস্টল করুন
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={dismissInstall}
-            aria-label="বন্ধ করুন"
-            className={`shrink-0 px-1 text-base leading-none ${MUTED}`}
-          >
-            ✕
-          </button>
-        </div>
-      )}
+    <section
+      id="order-form"
+      className="mt-8 scroll-mt-6 space-y-5 rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03] p-5"
+    >
+      <p className="text-2xl text-[#f3f1e8]">অর্ডার করুন</p>
+      <Steps step={step} />
 
-      {/* Header */}
-      <header className="pb-10">
-        <div className="flex items-center justify-between">
-          <p className={`text-xs uppercase tracking-[0.18em] ${MUTED}`}>
-            প্রাজ্ঞ ফুড
-          </p>
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full border border-[#f3f1e8]/15 px-2.5 py-1 text-[11px] ${MUTED}`}
-          >
-            <span className="relative flex h-1.5 w-1.5" aria-hidden>
-              <span className="absolute inline-flex h-full w-full rounded-full bg-[#9ad6b0] opacity-75 motion-safe:animate-ping" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#9ad6b0]" />
-            </span>
-            লাইভ
-          </span>
-        </div>
-
-        <h1
-          className={`${serif} ${RICE} mt-4 text-5xl leading-[1.35] tracking-tight`}
-        >
-          আজকের পিঠা
-        </h1>
-        <p className={`mt-3 text-sm ${MUTED}`}>
-          {updated ? `সর্বশেষ হালনাগাদ ${updated}-এ` : "হালনাগাদ হচ্ছে…"}
-        </p>
-
-        {canOrder && (
-          <button
-            type="button"
-            onClick={() => setCartOpen(true)}
-            className="mt-5 w-full rounded-xl bg-[#9ad6b0] px-4 py-3 text-lg font-medium text-[#14372b]"
-          >
-            🛒 অর্ডার করুন
-          </button>
-        )}
-      </header>
-
-      {/* Notice */}
-      {shownNotice && (
-        <section className="mb-6 rounded-2xl border border-[#e3a83f]/30 bg-[#e3a83f]/[0.08] p-4">
-          <p className="text-xs text-[#e3a83f]">📢 নোটিশ</p>
-          <p
-            className={`mt-1 whitespace-pre-line text-base leading-relaxed ${RICE}`}
-          >
-            {shownNotice.text}
-          </p>
-        </section>
-      )}
-
-      {/* Push notification opt-in */}
-      <NotifyButton />
-
-      {/* States */}
-      {!data && !failed && (
-        <section className="space-y-3 border-t border-[#f3f1e8]/15 py-10">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center justify-between gap-4">
-              <div className="flex-1 space-y-2">
-                <div className="h-5 w-32 rounded bg-[#f3f1e8]/10 motion-safe:animate-pulse" />
-                <div className="h-3 w-16 rounded bg-[#f3f1e8]/10 motion-safe:animate-pulse" />
-              </div>
-              <div className="h-10 w-12 rounded bg-[#f3f1e8]/10 motion-safe:animate-pulse" />
-            </div>
-          ))}
-        </section>
-      )}
-
-      {failed && !data && (
-        <section className="rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03] p-6">
-          <p className={`${serif} ${RICE} text-2xl leading-snug`}>
-            স্টক আনা যায়নি
-          </p>
-          <p className={`mt-2 text-sm leading-relaxed ${MUTED}`}>
-            ইন্টারনেট ঠিক আছে কি না দেখুন। পেজ নিজে থেকেই আবার চেষ্টা করবে।
-          </p>
-        </section>
-      )}
-
-      {data && !data.open && (
-        <section className="rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03] p-6">
-          <p className={`${serif} ${RICE} text-2xl leading-snug`}>
-            এখন বিক্রি বন্ধ আছে
-          </p>
-          <p className={`mt-2 text-sm leading-relaxed ${MUTED}`}>
-            বিক্রি শুরু হলে এখানেই পিঠার সংখ্যা দেখতে পাবেন।
-          </p>
-        </section>
-      )}
-
-      {data && data.open && items.length === 0 && (
-        <section className="rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03] p-6">
-          <p className={`${serif} ${RICE} text-2xl leading-snug`}>
-            আজকের পিঠা এখনও যোগ হয়নি
-          </p>
-          <p className={`mt-2 text-sm leading-relaxed ${MUTED}`}>
-            একটু পরে আবার দেখুন।
-          </p>
-        </section>
-      )}
-
-      {/* List */}
-      {data && data.open && items.length > 0 && (
+      {/* ধাপ ১: পিঠা বাছাই */}
+      {step === 1 && (
         <>
-          <ul className="space-y-3">
-            {items.map((p) => {
-              const tone = toneOf(p.remaining);
-              const t = TONE[tone];
-              const out = tone === "out";
-              const dots = Math.min(p.remaining, MAX_DOTS);
-
+          <div className="space-y-3">
+            {available.map((it) => {
+              const q = qty[it.name] ?? 0;
               return (
-                <li
-                  key={p.name}
-                  className={`rounded-2xl border p-5 transition-colors ${
-                    out
-                      ? "border-[#f3f1e8]/10 bg-[#f3f1e8]/[0.02]"
-                      : "border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.04]"
-                  }`}
+                <div
+                  key={it.name}
+                  className="flex items-center justify-between gap-3"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={`${serif} text-2xl leading-snug ${
-                          out
-                            ? "text-[#7f988b] line-through decoration-1"
-                            : RICE
-                        }`}
-                      >
-                        {p.name}
-                      </p>
-
-                      <span
-                        className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] ${t.text} ${t.badgeBg}`}
-                      >
-                        {!out && (
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${t.dot}`}
-                          />
-                        )}
-                        {t.label}
+                  <div>
+                    <span className="text-lg text-[#f3f1e8]">{it.name}</span>
+                    {it.price != null && (
+                      <span className="ml-2 text-sm text-[#9db8aa]">
+                        {bn(it.price)} টাকা
                       </span>
-
-                      {!out && (
-                        <div
-                          className="mt-3 flex flex-wrap items-center gap-1.5"
-                          aria-hidden
-                        >
-                          {Array.from({ length: dots }).map((_, i) => (
-                            <span
-                              key={i}
-                              className={`h-2 w-2 rounded-full ${t.dot}`}
-                            />
-                          ))}
-                          {p.remaining > MAX_DOTS && (
-                            <span className={`ml-1 text-xs ${MUTED}`}>
-                              +{bn(p.remaining - MAX_DOTS)}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {profiles[p.name] && (
-                        <button
-                          type="button"
-                          onClick={() => setViewing(p.name)}
-                          className={`mt-3 rounded-full border border-[#f3f1e8]/20 px-3 py-1 text-xs ${RICE}`}
-                        >
-                          📷 ছবি ও বিবরণ দেখুন
-                        </button>
-                      )}
-                    </div>
-
-                    <p
-                      className={`${serif} shrink-0 text-right text-5xl leading-none tabular-nums ${
-                        out ? "text-[#7f988b]" : RICE
-                      }`}
-                    >
-                      {bn(p.remaining)}
-                      <span className={`ml-1 text-base font-normal ${MUTED}`}>
-                        টি
-                      </span>
-                    </p>
+                    )}
                   </div>
-                </li>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      className={stepBtn}
+                      onClick={() => setQ(it.name, q - 1, it.remaining)}
+                    >
+                      −
+                    </button>
+                    <span className="w-8 text-center text-lg tabular-nums text-[#f3f1e8]">
+                      {bn(q)}
+                    </span>
+                    <button
+                      type="button"
+                      className={stepBtn}
+                      onClick={() => setQ(it.name, q + 1, it.remaining)}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
               );
             })}
-          </ul>
+          </div>
 
-          {allGone && (
-            <div className="mt-8 rounded-2xl border border-[#e3a83f]/25 bg-[#e3a83f]/[0.06] p-5">
-              <p className={`${serif} ${RICE} text-xl leading-snug`}>
-                আজকের সব পিঠা শেষ।
-              </p>
-              <p className={`mt-1 text-sm ${MUTED}`}>কাল আবার দেখা হবে।</p>
+          {chosen.length > 0 && (
+            <div className="space-y-1 rounded-xl border border-[#f3f1e8]/15 p-3 text-sm text-[#9db8aa]">
+              <div className="flex items-center justify-between">
+                <span>মোট পিঠা</span>
+                <span className="tabular-nums text-[#f3f1e8]">
+                  {bn(totalQty)} টি
+                </span>
+              </div>
+              {allPriced && (
+                <div className="flex items-center justify-between">
+                  <span>পিঠার দাম</span>
+                  <span className="tabular-nums text-[#f3f1e8]">
+                    {bn(subtotalLocal)} টাকা
+                  </span>
+                </div>
+              )}
             </div>
           )}
+
+          <p
+            className={`text-xs ${
+              totalQty >= MIN_QTY ? "text-[#9db8aa]" : "text-[#e3a83f]"
+            }`}
+          >
+            একটি অর্ডারে কমপক্ষে {bn(MIN_QTY)}টি পিঠা নিতে হবে।
+          </p>
+
+          {error && <p className="text-sm text-[#e3a83f]">{error}</p>}
+
+          <button type="button" onClick={next1} className={primaryBtn}>
+            পরের ধাপ →
+          </button>
         </>
       )}
 
-      <p className={`mt-10 flex items-center gap-2 text-xs ${MUTED}`}>
-        <span aria-hidden>↻</span>
-        প্রতি ৩০ সেকেন্ডে নিজে থেকে হালনাগাদ হয়।
-      </p>
+      {/* ধাপ ২: নেওয়ার ধরন (কোনটাই আগে থেকে বাছাই করা নেই) */}
+      {step === 2 && (
+        <>
+          <p className="text-lg text-[#f3f1e8]">পিঠা কীভাবে নিতে চান?</p>
 
-      {/* Cart: অর্ডার ফর্ম এখানে খোলে। বন্ধ থাকলেও ফর্ম থাকে, তাই বাছাই করা পিঠা মুছে যায় না */}
-      {canOrder && (
-        <div
-          onClick={() => setCartOpen(false)}
-          className={
-            cartVisible
-              ? "fixed inset-0 z-40 flex items-end justify-center bg-black/70 sm:items-center sm:p-4"
-              : "hidden"
-          }
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[92vh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl border border-[#f3f1e8]/15 bg-[#14372b] sm:rounded-2xl"
-          >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#f3f1e8]/10 bg-[#14372b] px-5 py-3">
-              <span className={`text-base ${RICE}`}>🛒 আপনার কার্ট</span>
-              <button
-                type="button"
-                onClick={() => setCartOpen(false)}
-                aria-label="কার্ট বন্ধ করুন"
-                className={`px-2 text-xl leading-none ${MUTED}`}
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-4 [&>div]:mt-0 [&>section]:mt-0 [&>section]:scroll-mt-16 [&>section]:border-0 [&>section]:bg-transparent [&>section]:p-0">
-              <OrderForm items={items} />
-            </div>
+          <div className="space-y-3">
+            {(
+              [
+                {
+                  t: "booking",
+                  title: "🏪 বুকিং",
+                  sub: "দোকানে এসে নিজে নিয়ে যাব",
+                  note: "আপনাকে নিজে দোকানে এসে নিতে হবে। ডেলিভারি চার্জ লাগবে না।",
+                },
+                {
+                  t: "delivery",
+                  title: "🛵 ডেলিভারি",
+                  sub: "আমার ঠিকানায় পৌঁছে দিন",
+                  note: "ঠিকানা ও ম্যাপে পিন লাগবে। দূরত্ব অনুযায়ী ডেলিভারি চার্জ যোগ হবে।",
+                },
+              ] as const
+            ).map((o) => {
+              const on = type === o.t;
+              return (
+                <button
+                  key={o.t}
+                  type="button"
+                  onClick={() => {
+                    setType(o.t);
+                    setError("");
+                  }}
+                  className={`w-full rounded-2xl border p-4 text-left ${
+                    on
+                      ? "border-[#9ad6b0]/70 bg-[#9ad6b0]/10"
+                      : "border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03]"
+                  }`}
+                >
+                  <span className="flex items-center justify-between gap-3">
+                    <span className="text-xl text-[#f3f1e8]">{o.title}</span>
+                    <span
+                      className={`flex h-5 w-5 items-center justify-center rounded-full border text-[11px] ${
+                        on
+                          ? "border-[#9ad6b0] bg-[#9ad6b0] text-[#14372b]"
+                          : "border-[#f3f1e8]/30 text-transparent"
+                      }`}
+                      aria-hidden
+                    >
+                      ✓
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-base text-[#f3f1e8]">
+                    {o.sub}
+                  </span>
+                  <span className="mt-1 block text-xs text-[#9db8aa]">
+                    {o.note}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        </div>
-      )}
 
-      {/* Pitha profile card: the image loads only after the button is pressed */}
-      {viewing && profiles[viewing] && (
-        <div
-          onClick={() => setViewing(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#f3f1e8]/15 bg-[#14372b]"
-          >
-            {profiles[viewing].image && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={profiles[viewing].image}
-                alt={viewing}
-                className="w-full"
+          {/* ডেলিভারি বাছাই করলে ঠিক নিচেই ঠিকানা ও ম্যাপ আসে */}
+          {type === "delivery" && (
+            <div className="space-y-4 rounded-2xl border border-[#9ad6b0]/25 bg-[#9ad6b0]/[0.04] p-4">
+              <textarea
+                className={field}
+                rows={2}
+                placeholder="ডেলিভারির ঠিকানা"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
               />
+              <LocationPicker value={loc} onChange={setLoc} />
+
+              {billErr && (
+                <div className="rounded-xl border border-[#e3a83f]/30 bg-[#e3a83f]/[0.08] p-3">
+                  <p className="text-sm text-[#e3a83f]">
+                    {billErr}
+                    {billErr.includes("ডেলিভারি দেওয়া হয় না") &&
+                      " বুকিং দিয়ে দোকান থেকে নিতে পারেন।"}
+                  </p>
+                </div>
+              )}
+
+              <p className="text-xs text-[#9db8aa]">
+                লোকেশন শুধু ডেলিভারির কাজে ব্যবহার করা হবে।
+              </p>
+            </div>
+          )}
+
+          {error && <p className="text-sm text-[#e3a83f]">{error}</p>}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => goStep(1)} className={ghostBtn}>
+              ← পিছনে
+            </button>
+            <button type="button" onClick={next2} className={primaryBtn}>
+              পরের ধাপ →
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ধাপ ৩: আপনার তথ্য */}
+      {step === 3 && (
+        <>
+          {type && (
+            <p className="rounded-xl border border-[#f3f1e8]/15 px-3 py-2 text-sm text-[#9db8aa]">
+              নেওয়ার ধরন:{" "}
+              <span className="text-[#f3f1e8]">{TYPE_LABEL[type]}</span>
+            </p>
+          )}
+
+          <input
+            className={field}
+            placeholder="আপনার নাম"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+
+          <div className="space-y-2">
+            <input
+              className={field}
+              placeholder="মোবাইল নম্বর (WhatsApp আছে এমন)"
+              inputMode="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+            {phone.trim() !== "" && !phoneOk && (
+              <p className="text-xs text-[#e3a83f]">
+                নম্বর ১১ ডিজিটের হতে হবে, যেমন ০১৭১২৩৪৫৬৭৮
+              </p>
             )}
-            <div className="p-5">
-              <h3 className={`${serif} ${RICE} text-2xl`}>{viewing}</h3>
-              {profiles[viewing].details && (
-                <p className={`mt-2 text-sm leading-relaxed ${RICE}`}>
-                  {profiles[viewing].details}
-                </p>
-              )}
-              {profiles[viewing].ingredients && (
-                <p className={`mt-3 text-sm ${MUTED}`}>
-                  উপকরণ: {profiles[viewing].ingredients}
-                </p>
-              )}
+            <input
+              className={field}
+              placeholder="নম্বরটি আবার লিখুন"
+              inputMode="tel"
+              value={phone2}
+              onChange={(e) => setPhone2(e.target.value)}
+            />
+            {phone2.trim() !== "" && !phoneMatch && (
+              <p className="text-xs text-[#e3a83f]">দুটি নম্বর মিলছে না</p>
+            )}
+            {phoneOk && phoneMatch && (
+              <p className="text-xs text-[#9db8aa]">
+                নম্বর: {toBnDigits(p)} ·{" "}
+                <a
+                  href={`https://wa.me/88${p}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#9ad6b0] underline"
+                >
+                  WhatsApp-এ আছে কি না দেখুন ↗
+                </a>
+              </p>
+            )}
+          </div>
+
+          <input
+            className={field}
+            placeholder="কিছু জানাতে চাইলে (ঐচ্ছিক)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+
+          {error && <p className="text-sm text-[#e3a83f]">{error}</p>}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => goStep(2)} className={ghostBtn}>
+              ← পিছনে
+            </button>
+            <button type="button" onClick={next3} className={primaryBtn}>
+              পরের ধাপ →
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ধাপ ৪: বিল ও আবেদন */}
+      {step === 4 && (
+        <>
+          {type && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-[#9ad6b0]/30 bg-[#9ad6b0]/[0.08] px-4 py-3">
+              <span className="text-lg text-[#f3f1e8]">{TYPE_LABEL[type]}</span>
               <button
                 type="button"
-                onClick={() => setViewing(null)}
-                className="mt-5 w-full rounded-xl bg-[#9ad6b0] py-3 font-medium text-[#14372b]"
+                onClick={() => goStep(2)}
+                className="shrink-0 text-sm text-[#9ad6b0] underline"
               >
-                বন্ধ করুন
+                বদলান
               </button>
             </div>
+          )}
+
+          <div className="space-y-2 rounded-xl border border-[#f3f1e8]/15 p-4 text-sm text-[#f3f1e8]">
+            {chosen.map((c) => (
+              <div key={c.name} className="flex items-center justify-between">
+                <span>{c.name}</span>
+                <span className="tabular-nums">{bn(c.qty)} টি</span>
+              </div>
+            ))}
+            <div className="mt-2 space-y-1 border-t border-[#f3f1e8]/15 pt-2 text-[#9db8aa]">
+              <p>
+                {name.trim()} · {toBnDigits(p)}
+              </p>
+              {type === "delivery" && address.trim() && <p>{address.trim()}</p>}
+              {note.trim() && <p>নোট: {note.trim()}</p>}
+            </div>
           </div>
-        </div>
+
+          {type && bill ? (
+            <div className={billBusy ? "opacity-60" : ""}>
+              <BillBox bill={bill} type={type} />
+            </div>
+          ) : billErr ? (
+            <p className="text-sm text-[#e3a83f]">{billErr}</p>
+          ) : (
+            <p className="text-sm text-[#9db8aa]">বিল হিসাব হচ্ছে…</p>
+          )}
+
+          {error && <p className="text-sm text-[#e3a83f]">{error}</p>}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => goStep(3)} className={ghostBtn}>
+              ← পিছনে
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={busy || billBusy}
+              className="w-full rounded-xl bg-[#9ad6b0] px-4 py-3 text-lg font-medium text-[#14372b] disabled:opacity-60"
+            >
+              {busy ? "পাঠানো হচ্ছে…" : "অর্ডারের আবেদন করুন"}
+            </button>
+          </div>
+        </>
       )}
-    </main>
+    </section>
   );
 }
