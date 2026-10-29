@@ -23,7 +23,13 @@ type StockData = {
 };
 type Tone = "ok" | "low" | "out";
 type Profile = { details: string; ingredients: string; image: string };
-type Notice = { text: string; active: boolean; until: string | null };
+type Notice = {
+  text: string;
+  active: boolean;
+  until: string | null;
+  link?: string;
+  linkLabel?: string;
+};
 type InstallEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
@@ -293,6 +299,18 @@ export default function PublicStockPage() {
           >
             {shownNotice.text}
           </p>
+          {shownNotice.link && (
+            <a
+              href={shownNotice.link}
+              target={
+                shownNotice.link.startsWith("tel:") ? undefined : "_blank"
+              }
+              rel="noopener noreferrer"
+              className="mt-3 block w-full rounded-xl bg-[#e3a83f] px-4 py-3 text-center text-base font-medium text-[#14372b]"
+            >
+              {shownNotice.linkLabel?.trim() || "লিংক খুলুন"}
+            </a>
+          )}
         </section>
       )}
 
