@@ -1,28 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import dynamic from "next/dynamic";
-import NotifyButton from "./NotifyButton";
+import { useEffect, useState } from "react";
 
-const OrderForm = dynamic(() => import("./OrderForm"), {
-  ssr: false,
-  loading: () => (
-    <div
-      id="order-form"
-      className="h-40 rounded-2xl bg-[#f3f1e8]/[0.04] motion-safe:animate-pulse"
-    />
-  ),
-});
-
-type StockItem = { name: string; remaining: number };
-type StockData = {
-  open: boolean;
-  orderOpen?: boolean;
-  items: StockItem[];
-  updatedAt: string;
-};
-type Tone = "ok" | "low" | "out";
 type Profile = { details: string; ingredients: string; image: string };
+type Profiles = Record<string, Profile>;
 type Notice = {
   text: string;
   active: boolean;
@@ -30,517 +11,467 @@ type Notice = {
   link?: string;
   linkLabel?: string;
 };
-type InstallEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-};
 
-const LOW_LIMIT = 5;
-const REFRESH_MS = 30_000;
-const MAX_DOTS = 20;
-const INSTALL_DISMISS_KEY = "pwa-install-dismissed";
+const toEn = (s: string) =>
+  s.replace(/[০-৯]/g, (d) => String("০১২৩৪৫৬৭৮৯".indexOf(d)));
 
-const RICE = "text-[#f3f1e8]";
-const MUTED = "text-[#9db8aa]";
-const serif = "[font-family:var(--font-sans-bn),system-ui,sans-serif]";
-
-const bn = (n: number) => n.toLocaleString("bn-BD");
-
-function toneOf(n: number): Tone {
-  if (n <= 0) return "out";
-  if (n <= LOW_LIMIT) return "low";
-  return "ok";
+async function compress(file: File): Promise<Blob> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 800 / bmp.width);
+  const w = Math.round(bmp.width * scale);
+  const h = Math.round(bmp.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext("2d")!.drawImage(bmp, 0, 0, w, h);
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("ছবি ছোট করা যায়নি"))),
+      "image/webp",
+      0.8,
+    ),
+  );
 }
 
-const TONE: Record<
-  Tone,
-  { label: string; text: string; dot: string; badgeBg: string }
-> = {
-  ok: {
-    label: "আছে",
-    text: "text-[#9ad6b0]",
-    dot: "bg-[#9ad6b0]",
-    badgeBg: "bg-[#9ad6b0]/10 border-[#9ad6b0]/20",
-  },
-  low: {
-    label: "কম আছে",
-    text: "text-[#e3a83f]",
-    dot: "bg-[#e3a83f]",
-    badgeBg: "bg-[#e3a83f]/10 border-[#e3a83f]/20",
-  },
-  out: {
-    label: "শেষ",
-    text: "text-[#7f988b]",
-    dot: "",
-    badgeBg: "bg-transparent border-[#7f988b]/20",
-  },
-};
+function Editor({
+  name,
+  initial,
+  adminKey,
+  onSaved,
+  onClose,
+}: {
+  name: string;
+  initial?: Profile;
+  adminKey: string;
+  onSaved: (name: string, p: Profile) => void;
+  onClose: () => void;
+}) {
+  const [details, setDetails] = useState(initial?.details ?? "");
+  const [ingredients, setIngredients] = useState(initial?.ingredients ?? "");
+  const [file, setFile] = useState<Blob | null>(null);
+  const [preview, setPreview] = useState(initial?.image ?? "");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
 
-export default function PublicStockPage() {
-  const [data, setData] = useState<StockData | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [profiles, setProfiles] = useState<Record<string, Profile>>({});
-  const [viewing, setViewing] = useState<string | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
-  const [cartOpen, setCartOpen] = useState(false);
-
-  const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null);
-  const [iosHint, setIosHint] = useState(false);
-  const [installHidden, setInstallHidden] = useState(true);
-
-  useEffect(() => {
-    const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (navigator as unknown as { standalone?: boolean }).standalone === true;
-    let dismissed = false;
+  async function pick(f: File | undefined) {
+    if (!f) return;
     try {
-      dismissed = localStorage.getItem(INSTALL_DISMISS_KEY) === "1";
-    } catch {}
-    if (standalone || dismissed) return;
-
-    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-    if (isIos) {
-      setIosHint(true);
-      setInstallHidden(false);
+      const b = await compress(f);
+      setFile(b);
+      setPreview(URL.createObjectURL(b));
+    } catch (e) {
+      setMsg((e as Error).message);
     }
+  }
 
-    const onPrompt = (e: Event) => {
-      e.preventDefault();
-      setInstallEvent(e as InstallEvent);
-      setInstallHidden(false);
-    };
-    const onInstalled = () => {
-      setInstallEvent(null);
-      setInstallHidden(true);
-    };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
-  }, []);
-
-  const dismissInstall = () => {
-    setInstallHidden(true);
+  async function save() {
+    setBusy(true);
+    setMsg("");
+    const fd = new FormData();
+    fd.set("key", adminKey);
+    fd.set("name", name);
+    fd.set("details", details);
+    fd.set("ingredients", ingredients);
+    if (file) fd.set("image", file, "photo.webp");
     try {
-      localStorage.setItem(INSTALL_DISMISS_KEY, "1");
-    } catch {}
-  };
-
-  const doInstall = async () => {
-    if (!installEvent) return;
-    await installEvent.prompt();
-    await installEvent.userChoice;
-    setInstallEvent(null);
-    setInstallHidden(true);
-  };
-
-  useEffect(() => {
-    fetch("/api/profiles")
-      .then((r) => r.json())
-      .then(setProfiles)
-      .catch(() => {});
-  }, []);
-
-  const load = useCallback(async () => {
-    fetch("/api/notice")
-      .then((r) => r.json())
-      .then((n: Notice) => setNotice(n))
-      .catch(() => {});
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE ?? ""}/api/public/stock`,
-      );
-      if (!res.ok) throw new Error("failed");
-      const json = (await res.json()) as StockData;
-      setData(json);
-      setFailed(false);
-    } catch {
-      setFailed(true);
+      const r = await fetch("/api/profiles", { method: "POST", body: fd });
+      const text = await r.text();
+      let j: { profile?: Profile; error?: string } = {};
+      try {
+        j = JSON.parse(text);
+      } catch {}
+      if (!r.ok) {
+        throw new Error(j.error || `সেভ হয়নি (কোড ${r.status})`);
+      }
+      onSaved(name, j.profile as Profile);
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
     }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const timer = setInterval(load, REFRESH_MS);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") load();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [load]);
-
-  const items = data
-    ? [...data.items].sort((a, b) => {
-        const aEnd = a.remaining <= 0 ? 1 : 0;
-        const bEnd = b.remaining <= 0 ? 1 : 0;
-        return aEnd - bEnd || a.name.localeCompare(b.name);
-      })
-    : [];
-
-  const updated = data
-    ? new Date(data.updatedAt).toLocaleTimeString("bn-BD", {
-        hour: "numeric",
-        minute: "2-digit",
-        timeZone: "Asia/Dhaka",
-      })
-    : null;
-
-  const allGone = items.length > 0 && items.every((p) => p.remaining <= 0);
-
-  const showInstall = !installHidden && (installEvent !== null || iosHint);
-
-  const shownNotice =
-    notice &&
-    notice.active &&
-    notice.text.trim() &&
-    (!notice.until || Date.now() < new Date(notice.until).getTime())
-      ? notice
-      : null;
-
-  const canOrder = Boolean(data?.orderOpen) && !allGone;
-  const cartVisible = cartOpen && canOrder;
-
-  // কার্ট খোলা থাকলে পেছনের পেজ স্ক্রল বন্ধ, Esc চাপলে কার্ট বন্ধ
-  useEffect(() => {
-    if (!cartVisible) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setCartOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [cartVisible]);
+  }
 
   return (
-    <main className="mx-auto min-h-screen max-w-xl bg-[#14372b] px-6 pb-16 pt-14">
-      {/* Install bar */}
-      {showInstall && (
-        <div className="-mt-8 mb-6 flex items-center gap-3 rounded-xl border border-[#9ad6b0]/25 bg-[#9ad6b0]/10 px-3 py-2.5">
-          <span aria-hidden className="text-lg">
-            📲
-          </span>
-          <p className={`min-w-0 flex-1 text-xs leading-snug ${RICE}`}>
-            {installEvent
-              ? "অ্যাপের মতো ব্যবহার করতে হোম স্ক্রিনে ইনস্টল করুন"
-              : "ইনস্টল করতে Share (⬆️) চেপে “Add to Home Screen” দিন"}
-          </p>
-          {installEvent && (
-            <button
-              type="button"
-              onClick={doInstall}
-              className="shrink-0 rounded-lg bg-[#9ad6b0] px-3 py-1.5 text-xs font-medium text-[#14372b]"
-            >
-              ইনস্টল করুন
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={dismissInstall}
-            aria-label="বন্ধ করুন"
-            className={`shrink-0 px-1 text-base leading-none ${MUTED}`}
-          >
-            ✕
-          </button>
-        </div>
-      )}
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center">
+      <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-[#14372b] p-5 text-[#f3f1e8] sm:rounded-2xl">
+        <h2 className="text-2xl">{name}</h2>
 
-      {/* Header */}
-      <header className="pb-10">
-        <div className="flex items-center justify-between">
-          <p className={`text-xs uppercase tracking-[0.18em] ${MUTED}`}>
-            প্রাজ্ঞ ফুড
-          </p>
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full border border-[#f3f1e8]/15 px-2.5 py-1 text-[11px] ${MUTED}`}
-          >
-            <span className="relative flex h-1.5 w-1.5" aria-hidden>
-              <span className="absolute inline-flex h-full w-full rounded-full bg-[#9ad6b0] opacity-75 motion-safe:animate-ping" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#9ad6b0]" />
-            </span>
-            লাইভ
-          </span>
-        </div>
-
-        <h1
-          className={`${serif} ${RICE} mt-4 text-5xl leading-[1.35] tracking-tight`}
-        >
-          আজকের পিঠা
-        </h1>
-        <p className={`mt-3 text-sm ${MUTED}`}>
-          {updated ? `সর্বশেষ হালনাগাদ ${updated}-এ` : "হালনাগাদ হচ্ছে…"}
-        </p>
-
-        {canOrder && (
-          <button
-            type="button"
-            onClick={() => setCartOpen(true)}
-            className="mt-5 w-full rounded-xl bg-[#9ad6b0] px-4 py-3 text-lg font-medium text-[#14372b]"
-          >
-            🛒 অর্ডার করুন
-          </button>
+        {preview && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={preview} alt={name} className="mt-4 w-full rounded-xl" />
         )}
-      </header>
+        <label className="mt-4 block rounded-xl border border-[#f3f1e8]/20 p-3 text-center text-sm">
+          📷 {preview ? "ছবি বদলান" : "ছবি বেছে নিন"}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => pick(e.target.files?.[0])}
+          />
+        </label>
 
-      {/* Notice */}
-      {shownNotice && (
-        <section className="mb-6 rounded-2xl border border-[#e3a83f]/30 bg-[#e3a83f]/[0.08] p-4">
-          <p className="text-xs text-[#e3a83f]">📢 নোটিশ</p>
-          <p
-            className={`mt-1 whitespace-pre-line text-base leading-relaxed ${RICE}`}
+        <label className="mt-4 block text-sm text-[#9db8aa]">বিবরণ</label>
+        <textarea
+          value={details}
+          onChange={(e) => setDetails(e.target.value)}
+          rows={4}
+          className="mt-1 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+        />
+
+        <label className="mt-3 block text-sm text-[#9db8aa]">উপকরণ</label>
+        <input
+          value={ingredients}
+          onChange={(e) => setIngredients(e.target.value)}
+          className="mt-1 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+        />
+
+        {msg && <p className="mt-3 text-sm text-[#e3a83f]">{msg}</p>}
+
+        <div className="mt-5 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-[#f3f1e8]/20 py-3"
           >
-            {shownNotice.text}
-          </p>
-          {shownNotice.link && (
-            <a
-              href={shownNotice.link}
-              target={
-                shownNotice.link.startsWith("tel:") ? undefined : "_blank"
-              }
-              rel="noopener noreferrer"
-              className="mt-3 block w-full rounded-xl bg-[#e3a83f] px-4 py-3 text-center text-base font-medium text-[#14372b]"
-            >
-              {shownNotice.linkLabel?.trim() || "লিংক খুলুন"}
-            </a>
-          )}
-        </section>
-      )}
+            বাতিল
+          </button>
+          <button
+            onClick={save}
+            disabled={busy}
+            className="flex-1 rounded-xl bg-[#9ad6b0] py-3 font-medium text-[#14372b] disabled:opacity-50"
+          >
+            {busy ? "সেভ হচ্ছে…" : "সেভ করুন"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      {/* Push notification opt-in */}
-      <NotifyButton />
+function NoticeSection({ adminKey }: { adminKey: string }) {
+  const [text, setText] = useState("");
+  const [hours, setHours] = useState("");
+  const [link, setLink] = useState("");
+  const [linkLabel, setLinkLabel] = useState("");
+  const [active, setActive] = useState(false);
+  const [until, setUntil] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
 
-      {/* States */}
-      {!data && !failed && (
-        <section className="space-y-3 border-t border-[#f3f1e8]/15 py-10">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center justify-between gap-4">
-              <div className="flex-1 space-y-2">
-                <div className="h-5 w-32 rounded bg-[#f3f1e8]/10 motion-safe:animate-pulse" />
-                <div className="h-3 w-16 rounded bg-[#f3f1e8]/10 motion-safe:animate-pulse" />
-              </div>
-              <div className="h-10 w-12 rounded bg-[#f3f1e8]/10 motion-safe:animate-pulse" />
-            </div>
-          ))}
-        </section>
-      )}
+  useEffect(() => {
+    fetch("/api/notice", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((n: Notice) => {
+        setText(n.text ?? "");
+        setActive(!!n.active);
+        setUntil(n.until ?? null);
+        setLink(n.link ?? "");
+        setLinkLabel(n.linkLabel ?? "");
+      })
+      .catch(() => {});
+  }, []);
 
-      {failed && !data && (
-        <section className="rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03] p-6">
-          <p className={`${serif} ${RICE} text-2xl leading-snug`}>
-            স্টক আনা যায়নি
-          </p>
-          <p className={`mt-2 text-sm leading-relaxed ${MUTED}`}>
-            ইন্টারনেট ঠিক আছে কি না দেখুন। পেজ নিজে থেকেই আবার চেষ্টা করবে।
-          </p>
-        </section>
-      )}
+  async function save(on: boolean) {
+    setBusy(true);
+    setMsg("");
+    try {
+      const r = await fetch("/api/notice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key: adminKey,
+          text,
+          active: on,
+          hours: hours ? Number(toEn(hours)) : 0,
+          link,
+          linkLabel,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `সেভ হয়নি (কোড ${r.status})`);
+      setActive(j.notice.active);
+      setUntil(j.notice.until);
+      setLink(j.notice.link ?? "");
+      setLinkLabel(j.notice.linkLabel ?? "");
+      setMsg(
+        j.notice.active
+          ? "নোটিশ লাইভ সাইটে চালু হয়েছে"
+          : "নোটিশ বন্ধ করা হয়েছে",
+      );
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
-      {data && !data.open && (
-        <section className="rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03] p-6">
-          <p className={`${serif} ${RICE} text-2xl leading-snug`}>
-            এখন বিক্রি বন্ধ আছে
-          </p>
-          <p className={`mt-2 text-sm leading-relaxed ${MUTED}`}>
-            বিক্রি শুরু হলে এখানেই পিঠার সংখ্যা দেখতে পাবেন।
-          </p>
-        </section>
-      )}
+  const expired = !!until && new Date(until).getTime() < Date.now();
+  const live = active && !expired;
 
-      {data && data.open && items.length === 0 && (
-        <section className="rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03] p-6">
-          <p className={`${serif} ${RICE} text-2xl leading-snug`}>
-            আজকের পিঠা এখনও যোগ হয়নি
-          </p>
-          <p className={`mt-2 text-sm leading-relaxed ${MUTED}`}>
-            একটু পরে আবার দেখুন।
-          </p>
-        </section>
-      )}
-
-      {/* List */}
-      {data && data.open && items.length > 0 && (
-        <>
-          <ul className="space-y-3">
-            {items.map((p) => {
-              const tone = toneOf(p.remaining);
-              const t = TONE[tone];
-              const out = tone === "out";
-              const dots = Math.min(p.remaining, MAX_DOTS);
-
-              return (
-                <li
-                  key={p.name}
-                  className={`rounded-2xl border p-5 transition-colors ${
-                    out
-                      ? "border-[#f3f1e8]/10 bg-[#f3f1e8]/[0.02]"
-                      : "border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.04]"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={`${serif} text-2xl leading-snug ${
-                          out
-                            ? "text-[#7f988b] line-through decoration-1"
-                            : RICE
-                        }`}
-                      >
-                        {p.name}
-                      </p>
-
-                      <span
-                        className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] ${t.text} ${t.badgeBg}`}
-                      >
-                        {!out && (
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${t.dot}`}
-                          />
-                        )}
-                        {t.label}
-                      </span>
-
-                      {!out && (
-                        <div
-                          className="mt-3 flex flex-wrap items-center gap-1.5"
-                          aria-hidden
-                        >
-                          {Array.from({ length: dots }).map((_, i) => (
-                            <span
-                              key={i}
-                              className={`h-2 w-2 rounded-full ${t.dot}`}
-                            />
-                          ))}
-                          {p.remaining > MAX_DOTS && (
-                            <span className={`ml-1 text-xs ${MUTED}`}>
-                              +{bn(p.remaining - MAX_DOTS)}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      {profiles[p.name] && (
-                        <button
-                          type="button"
-                          onClick={() => setViewing(p.name)}
-                          className={`mt-3 rounded-full border border-[#f3f1e8]/20 px-3 py-1 text-xs ${RICE}`}
-                        >
-                          📷 ছবি ও বিবরণ দেখুন
-                        </button>
-                      )}
-                    </div>
-
-                    <p
-                      className={`${serif} shrink-0 text-right text-5xl leading-none tabular-nums ${
-                        out ? "text-[#7f988b]" : RICE
-                      }`}
-                    >
-                      {bn(p.remaining)}
-                      <span className={`ml-1 text-base font-normal ${MUTED}`}>
-                        টি
-                      </span>
-                    </p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-
-          {allGone && (
-            <div className="mt-8 rounded-2xl border border-[#e3a83f]/25 bg-[#e3a83f]/[0.06] p-5">
-              <p className={`${serif} ${RICE} text-xl leading-snug`}>
-                আজকের সব পিঠা শেষ।
-              </p>
-              <p className={`mt-1 text-sm ${MUTED}`}>কাল আবার দেখা হবে।</p>
-            </div>
-          )}
-        </>
-      )}
-
-      <p className={`mt-10 flex items-center gap-2 text-xs ${MUTED}`}>
-        <span aria-hidden>↻</span>
-        প্রতি ৩০ সেকেন্ডে নিজে থেকে হালনাগাদ হয়।
+  return (
+    <section className="mt-8 rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.04] p-5">
+      <h2 className="text-2xl">📢 নোটিশ</h2>
+      <p className="mt-1 text-sm text-[#9db8aa]">
+        {live
+          ? `এখন লাইভ সাইটে দেখানো হচ্ছে${
+              until
+                ? ` (${new Date(until).toLocaleString("bn-BD", {
+                    timeZone: "Asia/Dhaka",
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })} পর্যন্ত)`
+                : ""
+            }`
+          : expired
+            ? "মেয়াদ শেষ হয়ে গেছে, এখন দেখানো হচ্ছে না"
+            : "এখন দেখানো হচ্ছে না"}
       </p>
 
-      {/* Cart: অর্ডার ফর্ম এখানে খোলে। বন্ধ থাকলেও ফর্ম থাকে, তাই বাছাই করা পিঠা মুছে যায় না */}
-      {canOrder && (
-        <div
-          onClick={() => setCartOpen(false)}
-          className={
-            cartVisible
-              ? "fixed inset-0 z-40 flex items-end justify-center bg-black/70 sm:items-center sm:p-4"
-              : "hidden"
-          }
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[92vh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-2xl border border-[#f3f1e8]/15 bg-[#14372b] sm:rounded-2xl"
-          >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#f3f1e8]/10 bg-[#14372b] px-5 py-3">
-              <span className={`text-base ${RICE}`}>🛒 আপনার কার্ট</span>
-              <button
-                type="button"
-                onClick={() => setCartOpen(false)}
-                aria-label="কার্ট বন্ধ করুন"
-                className={`px-2 text-xl leading-none ${MUTED}`}
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-4 [&>div]:mt-0 [&>section]:mt-0 [&>section]:scroll-mt-16 [&>section]:border-0 [&>section]:bg-transparent [&>section]:p-0">
-              <OrderForm items={items} />
-            </div>
-          </div>
-        </div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        maxLength={600}
+        placeholder="নোটিশ লিখুন (যেমন: আজ বিকাল ৪টায় বিক্রি শুরু হবে)"
+        className="mt-3 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+      />
+      <input
+        value={hours}
+        onChange={(e) => setHours(e.target.value)}
+        inputMode="numeric"
+        placeholder="কত ঘণ্টা দেখাবে? (ফাঁকা = আমি বন্ধ না করা পর্যন্ত)"
+        className="mt-2 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+      />
+      <input
+        value={link}
+        onChange={(e) => setLink(e.target.value)}
+        inputMode="url"
+        autoCapitalize="none"
+        maxLength={500}
+        placeholder="বাটনের লিংক (ঐচ্ছিক, দিলে নোটিশের নিচে বাটন আসবে)"
+        className="mt-2 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+      />
+      {link.trim() && (
+        <input
+          value={linkLabel}
+          onChange={(e) => setLinkLabel(e.target.value)}
+          maxLength={40}
+          placeholder="বাটনের লেখা (ফাঁকা থাকলে “লিংক খুলুন”)"
+          className="mt-2 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+        />
       )}
 
-      {/* Pitha profile card: the image loads only after the button is pressed */}
-      {viewing && profiles[viewing] && (
-        <div
-          onClick={() => setViewing(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      {msg && <p className="mt-3 text-sm text-[#e3a83f]">{msg}</p>}
+
+      <div className="mt-4 flex gap-3">
+        <button
+          onClick={() => save(false)}
+          disabled={busy}
+          className="flex-1 rounded-xl border border-[#f3f1e8]/20 py-3 disabled:opacity-50"
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-[#f3f1e8]/15 bg-[#14372b]"
-          >
-            {profiles[viewing].image && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={profiles[viewing].image}
-                alt={viewing}
-                className="w-full"
-              />
-            )}
-            <div className="p-5">
-              <h3 className={`${serif} ${RICE} text-2xl`}>{viewing}</h3>
-              {profiles[viewing].details && (
-                <p className={`mt-2 text-sm leading-relaxed ${RICE}`}>
-                  {profiles[viewing].details}
-                </p>
-              )}
-              {profiles[viewing].ingredients && (
-                <p className={`mt-3 text-sm ${MUTED}`}>
-                  উপকরণ: {profiles[viewing].ingredients}
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={() => setViewing(null)}
-                className="mt-5 w-full rounded-xl bg-[#9ad6b0] py-3 font-medium text-[#14372b]"
-              >
-                বন্ধ করুন
-              </button>
-            </div>
-          </div>
-        </div>
+          বন্ধ করুন
+        </button>
+        <button
+          onClick={() => save(true)}
+          disabled={busy || !text.trim()}
+          className="flex-1 rounded-xl bg-[#9ad6b0] py-3 font-medium text-[#14372b] disabled:opacity-50"
+        >
+          {busy ? "সেভ হচ্ছে…" : "চালু করুন"}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function NotifySection({ adminKey }: { adminKey: string }) {
+  const [title, setTitle] = useState("আজকের পিঠা");
+  const [body, setBody] = useState("");
+  const [count, setCount] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    if (!adminKey) return;
+    fetch(`/api/push/send?key=${encodeURIComponent(adminKey)}`, {
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((j) => setCount(typeof j.count === "number" ? j.count : null))
+      .catch(() => {});
+  }, [adminKey]);
+
+  async function send() {
+    setMsg("");
+    if (!body.trim()) return setMsg("কী লিখে পাঠাবেন তা লিখুন");
+    if (!window.confirm(`${count ?? "সব"} জনকে নোটিফিকেশন পাঠাবেন?`)) return;
+    setBusy(true);
+    try {
+      const r = await fetch("/api/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: adminKey, title, body }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `পাঠানো যায়নি (কোড ${r.status})`);
+      setMsg(`${j.sent} জনকে পাঠানো হয়েছে`);
+      if (j.removed > 0) setCount((c) => (c == null ? c : c - j.removed));
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-6 rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.04] p-5">
+      <h2 className="text-2xl">🔔 নোটিফিকেশন</h2>
+      <p className="mt-1 text-sm text-[#9db8aa]">
+        {count != null
+          ? `${count} জন নোটিফিকেশন চালু করেছেন`
+          : "যারা চালু করেছেন তাদের ফোনে যাবে"}
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setBody("আজকের পিঠা বিক্রি শুরু হয়েছে। এখনই স্টক দেখুন!")}
+          className="rounded-full border border-[#f3f1e8]/20 px-3 py-1 text-xs"
+        >
+          🟢 বিক্রি শুরু হয়েছে
+        </button>
+        <button
+          type="button"
+          onClick={() => setBody("আজকের মতো বিক্রি শেষ। কাল আবার দেখা হবে।")}
+          className="rounded-full border border-[#f3f1e8]/20 px-3 py-1 text-xs"
+        >
+          🔴 আজকের মতো শেষ
+        </button>
+      </div>
+
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        maxLength={80}
+        placeholder="শিরোনাম"
+        className="mt-3 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+      />
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        rows={2}
+        maxLength={200}
+        placeholder="মেসেজ লিখুন"
+        className="mt-2 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+      />
+
+      {msg && <p className="mt-3 text-sm text-[#e3a83f]">{msg}</p>}
+
+      <button
+        onClick={send}
+        disabled={busy}
+        className="mt-4 w-full rounded-xl bg-[#9ad6b0] py-3 font-medium text-[#14372b] disabled:opacity-50"
+      >
+        {busy ? "পাঠানো হচ্ছে…" : "সবাইকে পাঠান"}
+      </button>
+    </section>
+  );
+}
+
+export default function ManagePage() {
+  const [adminKey, setAdminKey] = useState("");
+  const [names, setNames] = useState<string[]>([]);
+  const [profiles, setProfiles] = useState<Profiles>({});
+  const [selected, setSelected] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+
+  useEffect(() => {
+    setAdminKey(new URLSearchParams(window.location.search).get("key") ?? "");
+    (async () => {
+      try {
+        const r = await fetch("/api/profiles", { cache: "no-store" });
+        setProfiles(await r.json());
+      } catch {}
+      try {
+        const r = await fetch(
+          `${process.env.NEXT_PUBLIC_API_BASE ?? ""}/api/public/stock`,
+          { cache: "no-store" },
+        );
+        const j = await r.json();
+        setNames((j.items ?? []).map((i: { name: string }) => i.name));
+      } catch {}
+    })();
+  }, []);
+
+  const all = Array.from(new Set([...names, ...Object.keys(profiles)]));
+
+  return (
+    <main className="mx-auto min-h-screen max-w-xl bg-[#14372b] px-6 pb-16 pt-12 text-[#f3f1e8]">
+      <h1 className="text-3xl">ম্যানেজ</h1>
+      {!adminKey && (
+        <p className="mt-2 text-sm text-[#e3a83f]">
+          লিংকের শেষে ?key=আপনার-চাবি না থাকলে সেভ হবে না।
+        </p>
+      )}
+
+      <NoticeSection adminKey={adminKey} />
+      <NotifySection adminKey={adminKey} />
+
+      <h2 className="mt-10 text-2xl">পিঠার প্রোফাইল</h2>
+      <p className="mt-2 text-sm text-[#9db8aa]">
+        পিঠায় চাপ দিয়ে ছবি ও বিবরণ দিন।
+      </p>
+
+      <ul className="mt-6 space-y-3">
+        {all.map((n) => (
+          <li key={n}>
+            <button
+              onClick={() => setSelected(n)}
+              className="flex w-full items-center justify-between rounded-2xl border border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.04] p-4 text-left"
+            >
+              <span className="text-lg">{n}</span>
+              <span className="text-xs text-[#9db8aa]">
+                {profiles[n]
+                  ? profiles[n].image
+                    ? "✅ ছবি আছে"
+                    : "✏️ ছবি নেই"
+                  : "➕ তৈরি করুন"}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-6 flex gap-2">
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="তালিকায় নেই? পিঠার নাম লিখুন"
+          className="flex-1 rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+        />
+        <button
+          onClick={() => {
+            if (newName.trim()) {
+              setSelected(newName.trim());
+              setNewName("");
+            }
+          }}
+          className="rounded-xl bg-[#9ad6b0] px-4 font-medium text-[#14372b]"
+        >
+          যোগ
+        </button>
+      </div>
+
+      {selected && (
+        <Editor
+          key={selected}
+          name={selected}
+          initial={profiles[selected]}
+          adminKey={adminKey}
+          onClose={() => setSelected(null)}
+          onSaved={(n, p) => {
+            setProfiles((prev) => ({ ...prev, [n]: p }));
+            setSelected(null);
+          }}
+        />
       )}
     </main>
   );
