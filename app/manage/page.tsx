@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 
 type Profile = { details: string; ingredients: string; image: string };
 type Profiles = Record<string, Profile>;
-type Notice = { text: string; active: boolean; until: string | null };
+type Notice = {
+  text: string;
+  active: boolean;
+  until: string | null;
+  link?: string;
+  linkLabel?: string;
+};
 
 const toEn = (s: string) =>
   s.replace(/[০-৯]/g, (d) => String("০১২৩৪৫৬৭৮৯".indexOf(d)));
@@ -144,6 +150,8 @@ function Editor({
 function NoticeSection({ adminKey }: { adminKey: string }) {
   const [text, setText] = useState("");
   const [hours, setHours] = useState("");
+  const [link, setLink] = useState("");
+  const [linkLabel, setLinkLabel] = useState("");
   const [active, setActive] = useState(false);
   const [until, setUntil] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -156,6 +164,8 @@ function NoticeSection({ adminKey }: { adminKey: string }) {
         setText(n.text ?? "");
         setActive(!!n.active);
         setUntil(n.until ?? null);
+        setLink(n.link ?? "");
+        setLinkLabel(n.linkLabel ?? "");
       })
       .catch(() => {});
   }, []);
@@ -172,12 +182,16 @@ function NoticeSection({ adminKey }: { adminKey: string }) {
           text,
           active: on,
           hours: hours ? Number(toEn(hours)) : 0,
+          link,
+          linkLabel,
         }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || `সেভ হয়নি (কোড ${r.status})`);
       setActive(j.notice.active);
       setUntil(j.notice.until);
+      setLink(j.notice.link ?? "");
+      setLinkLabel(j.notice.linkLabel ?? "");
       setMsg(
         j.notice.active
           ? "নোটিশ লাইভ সাইটে চালু হয়েছে"
@@ -227,6 +241,24 @@ function NoticeSection({ adminKey }: { adminKey: string }) {
         placeholder="কত ঘণ্টা দেখাবে? (ফাঁকা = আমি বন্ধ না করা পর্যন্ত)"
         className="mt-2 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
       />
+      <input
+        value={link}
+        onChange={(e) => setLink(e.target.value)}
+        inputMode="url"
+        autoCapitalize="none"
+        maxLength={500}
+        placeholder="বাটনের লিংক (ঐচ্ছিক, দিলে নোটিশের নিচে বাটন আসবে)"
+        className="mt-2 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+      />
+      {link.trim() && (
+        <input
+          value={linkLabel}
+          onChange={(e) => setLinkLabel(e.target.value)}
+          maxLength={40}
+          placeholder="বাটনের লেখা (ফাঁকা থাকলে “লিংক খুলুন”)"
+          className="mt-2 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-base outline-none"
+        />
+      )}
 
       {msg && <p className="mt-3 text-sm text-[#e3a83f]">{msg}</p>}
 
