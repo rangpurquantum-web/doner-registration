@@ -12,6 +12,7 @@ type Bill = {
   km: number | null;
 };
 type OrderType = "booking" | "delivery";
+type PayMethod = "cod" | "online";
 
 const MIN_QTY = 5;
 
@@ -41,6 +42,11 @@ const ghostBtn =
 const TYPE_LABEL: Record<OrderType, string> = {
   booking: "🏪 বুকিং (দোকান থেকে নেবেন)",
   delivery: "🛵 ডেলিভারি",
+};
+
+const PAY_LABEL: Record<PayMethod, string> = {
+  cod: "💵 নগদে",
+  online: "📱 অনলাইনে (বিকাশ/নগদ/রকেট)",
 };
 
 function Steps({ step }: { step: 1 | 2 | 3 | 4 }) {
@@ -110,6 +116,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
   const [qty, setQty] = useState<Record<string, number>>({});
   // শুরুতে কিছুই বাছাই করা থাকে না, কাস্টমারকে নিজে বেছে নিতে হয়
   const [type, setType] = useState<OrderType | null>(null);
+  const [payMethod, setPayMethod] = useState<PayMethod | null>(null);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [phone2, setPhone2] = useState("");
@@ -285,6 +292,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
       return setError("সঠিক মোবাইল নম্বর দিন");
     }
     if (billErr) return setError(billErr);
+    if (!payMethod) return setError("টাকা কীভাবে দেবেন, একটি বেছে নিন");
 
     setBusy(true);
     try {
@@ -293,6 +301,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
+          payMethod,
           name: name.trim(),
           phone: p,
           address: type === "delivery" ? address.trim() : "",
@@ -326,13 +335,16 @@ export default function OrderForm({ items }: { items: Item[] }) {
           </p>
         )}
         <p className="mt-1 text-sm text-[#9db8aa]">
-          অ্যাপ্রুভ হলে আপনার WhatsApp-এ জানিয়ে দেওয়া হবে।
+          {payMethod === "online"
+            ? "অ্যাপ্রুভ হলে আপনার WhatsApp-এ পেমেন্টের লিংক পাঠানো হবে। লিংকে গিয়ে পুরো বিলের টাকা একবারে দিন।"
+            : "অ্যাপ্রুভ হলে আপনার WhatsApp-এ জানিয়ে দেওয়া হবে।"}
         </p>
         <button
           onClick={() => {
             setDone(false);
             setQty({});
             setType(null);
+            setPayMethod(null);
             setLoc(null);
             setLocOpen(false);
             setBill(null);
@@ -635,7 +647,7 @@ export default function OrderForm({ items }: { items: Item[] }) {
           </>
         )}
 
-        {/* ধাপ ৪: বিল ও আবেদন */}
+        {/* ধাপ ৪: বিল, টাকা দেওয়ার ধরন ও আবেদন */}
         {step === 4 && (
           <>
             {type && (
@@ -683,6 +695,62 @@ export default function OrderForm({ items }: { items: Item[] }) {
             ) : (
               <p className="text-sm text-[#9db8aa]">বিল হিসাব হচ্ছে…</p>
             )}
+
+            {/* টাকা দেওয়ার ধরন */}
+            <div className="space-y-3">
+              <p className="text-lg text-[#f3f1e8]">টাকা কীভাবে দেবেন?</p>
+              {(
+                [
+                  {
+                    m: "cod",
+                    title: PAY_LABEL.cod,
+                    sub:
+                      type === "delivery"
+                        ? "ডেলিভারির সময় হাতে হাতে দেবেন"
+                        : "দোকান থেকে নেওয়ার সময় দেবেন",
+                  },
+                  {
+                    m: "online",
+                    title: PAY_LABEL.online,
+                    sub: "অ্যাপ্রুভ হলে WhatsApp-এ পেমেন্ট লিংক যাবে। পুরো বিলের টাকা একবারে দিতে হবে।",
+                  },
+                ] as const
+              ).map((o) => {
+                const on = payMethod === o.m;
+                return (
+                  <button
+                    key={o.m}
+                    type="button"
+                    onClick={() => {
+                      setPayMethod(o.m);
+                      setError("");
+                    }}
+                    className={`w-full rounded-2xl border p-4 text-left ${
+                      on
+                        ? "border-[#9ad6b0]/70 bg-[#9ad6b0]/10"
+                        : "border-[#f3f1e8]/15 bg-[#f3f1e8]/[0.03]"
+                    }`}
+                  >
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="text-lg text-[#f3f1e8]">{o.title}</span>
+                      <span
+                        className={`flex h-5 w-5 items-center justify-center rounded-full border text-[11px] ${
+                          on
+                            ? "border-[#9ad6b0] bg-[#9ad6b0] text-[#14372b]"
+                            : "border-[#f3f1e8]/30 text-transparent"
+                        }`}
+                        aria-hidden
+                      >
+                        ✓
+                      </span>
+                    </span>
+                    <span className="mt-1 block text-xs text-[#9db8aa]">
+                      {o.sub}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
             {error && <p className="text-sm text-[#e3a83f]">{error}</p>}
 
