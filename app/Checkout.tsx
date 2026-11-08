@@ -297,7 +297,7 @@ export default function Checkout({
     return (
       <section id="checkout-top" className="space-y-3 text-[#1d1d1f]">
         <div className="rounded-3xl bg-[#FFF3E6] p-5">
-          <p className="text-2xl font-bold">✅ আবেদন পাঠানো হয়েছে</p>
+          <p className="text-2xl font-bold">আবেদন পাঠানো হয়েছে</p>
           <p className="mt-2 text-base">
             {dateText} তারিখের জন্য · {tierLabel}
           </p>
@@ -326,7 +326,7 @@ export default function Checkout({
     <>
       <section id="checkout-top" className="space-y-5 text-[#1d1d1f]">
         <div className="rounded-2xl bg-[#F4F5F7] px-4 py-3 text-sm">
-          <p className="font-semibold">📅 {dateText} তারিখের জন্য</p>
+          <p className="font-semibold">{dateText} তারিখের জন্য</p>
           <p className="text-gray-500">
             {tierLabel} · {bn(totalQty)} টি পিঠা
           </p>
@@ -344,13 +344,13 @@ export default function Checkout({
                 [
                   {
                     t: "booking",
-                    title: "🏪 বুকিং",
+                    title: "বুকিং",
                     sub: "দোকানে এসে নিজে নিয়ে যাব",
                     note: "ডেলিভারি চার্জ লাগবে না।",
                   },
                   {
                     t: "delivery",
-                    title: "🛵 ডেলিভারি",
+                    title: "ডেলিভারি",
                     sub: "আমার জায়গায় পৌঁছে দিন",
                     note: "দূরত্ব অনুযায়ী ডেলিভারি চার্জ যোগ হবে।",
                   },
@@ -398,7 +398,7 @@ export default function Checkout({
               (loc ? (
                 <div className="rounded-2xl bg-[#E8F5E9] p-4">
                   <p className="text-sm font-semibold text-green-800">
-                    ✅ ডেলিভারি লোকেশন দেওয়া হয়েছে
+                    ডেলিভারি লোকেশন দেওয়া হয়েছে
                   </p>
                   {landmark.trim() && (
                     <p className="mt-1 text-sm">{landmark.trim()}</p>
@@ -417,7 +417,7 @@ export default function Checkout({
                   onClick={openLoc}
                   className="w-full rounded-2xl border-2 border-[#F58220] bg-white px-4 py-3.5 text-lg font-semibold text-[#F58220]"
                 >
-                  📍 ডেলিভারি লোকেশন দিন
+                  ডেলিভারি লোকেশন দিন
                 </button>
               ))}
 
@@ -517,7 +517,7 @@ export default function Checkout({
                   {name.trim()} · {toBnDigits(p)}
                 </p>
                 <p>
-                  {type === "delivery" ? "🛵 ডেলিভারি" : "🏪 বুকিং"}
+                  {type === "delivery" ? "ডেলিভারি" : "বুকিং"}
                   {type === "delivery" && landmark.trim()
                     ? ` · ${landmark.trim()}`
                     : ""}
@@ -542,7 +542,7 @@ export default function Checkout({
                 [
                   {
                     m: "cod",
-                    title: "💵 নগদে",
+                    title: "নগদে",
                     sub:
                       type === "delivery"
                         ? "ডেলিভারির সময় হাতে হাতে দেবেন"
@@ -550,7 +550,7 @@ export default function Checkout({
                   },
                   {
                     m: "online",
-                    title: "📱 অনলাইনে (বিকাশ/নগদ/রকেট)",
+                    title: "অনলাইনে (বিকাশ/নগদ/রকেট)",
                     sub: "অ্যাপ্রুভ হলে WhatsApp-এ পেমেন্ট লিংক যাবে। পুরো বিলের টাকা একবারে দিতে হবে।",
                   },
                 ] as const
@@ -622,7 +622,7 @@ export default function Checkout({
           >
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-3">
               <span className="text-base font-semibold">
-                📍 ডেলিভারি লোকেশন
+                ডেলিভারি লোকেশন
               </span>
               <button
                 type="button"
