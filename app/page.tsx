@@ -27,6 +27,7 @@ type Notice = {
 };
 
 const API = process.env.NEXT_PUBLIC_API_BASE ?? "";
+const TOUR_KEY = "pf-tour-done";
 
 const TIERS: { key: Tier; label: string; desc: string; bg: string }[] = [
   {
@@ -78,34 +79,31 @@ function dateShort(iso: string) {
 }
 
 // ─── গাইডেড ট্যুর (পুরো পেজ ঝাপসা, শুধু একটা জায়গা উজ্জ্বল) ─────────────────
+const STEP_MS = 4000; // প্রতিটি ধাপ কত মিলিসেকেন্ড থাকবে, তারপর নিজে পরের ধাপে যায়
+
 type TourDef = { id: string; title: string; text: (minQty: number) => string };
 
 const TOUR: TourDef[] = [
   {
     id: "tour-days",
-    title: "দিন বাছুন",
-    text: () =>
-      "কোন দিনের জন্য পিঠা অর্ডার করবেন, এখান থেকে বেছে নিন। আজ বাদে আগামী কয়েক দিন বাছা যায়।",
+    title: "দিন নির্বাচন",
+    text: () => "কোন দিনের পিঠা চান, বেছে নিন।",
   },
   {
     id: "tour-tiers",
-    title: "পিঠার ধরন",
-    text: () =>
-      "রেগুলার, স্পেশাল বা স্টুডেন্ট বাজেট, এখান থেকে যেকোনো সময় বদলাতে পারবেন। ধরন অনুযায়ী দাম বদলায়।",
+    title: "ক্যাটাগরি নির্বাচন",
+    text: () => "রেগুলার, স্পেশাল বা স্টুডেন্ট বাজেট বেছে নিন।",
   },
   {
     id: "tour-first-add",
     title: "পিঠা যোগ করুন",
     text: (minQty) =>
-      `পছন্দের পিঠায় "যোগ করুন" চাপুন, এরপর + আর − দিয়ে সংখ্যা ঠিক করুন। কমপক্ষে ${bn(
-        minQty,
-      )}টি পিঠা নিতে হবে।`,
+      `পছন্দের পিঠা যোগ করুন। কমপক্ষে ${bn(minQty)}টি নিতে হবে।`,
   },
   {
     id: "tour-cart",
-    title: "কার্ট",
-    text: () =>
-      "পিঠা বাছাই শেষ হলে এখানে চাপুন। তারপর নেওয়ার ধরন, আপনার তথ্য ও বিল দেখে অর্ডার করুন।",
+    title: "কার্ট ও অর্ডার",
+    text: () => "কার্টে গিয়ে তথ্য পূরণ করে অর্ডার সম্পন্ন করুন।",
   },
 ];
 
@@ -169,13 +167,21 @@ function Tour({
     };
   }, [index, measure, onGo, onEnd]);
 
-  function go(dir: 1 | -1) {
-    let j = index + dir;
-    while (j >= 0 && j < TOUR.length && !tourExists(j)) j += dir;
-    if (j < 0) return;
+  function next() {
+    let j = index + 1;
+    while (j < TOUR.length && !tourExists(j)) j++;
     if (j >= TOUR.length) return onEnd();
     onGo(j);
   }
+
+  // জায়গাটা পর্দায় এসে গেলে ৪ সেকেন্ড পর নিজে নিজে পরের ধাপে যায়
+  const ready = rect !== null;
+  useEffect(() => {
+    if (!ready) return;
+    const t = window.setTimeout(next, STEP_MS);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, ready]);
 
   // এক ক্লিকে ট্যুর বাদ দেওয়ার বাটন: প্রতিটি ধাপে পর্দার উপরের কোণায় থাকে
   const skipPill = (
@@ -208,21 +214,22 @@ function Tour({
     (i) => i >= 0,
   );
   const pos = avail.indexOf(index) + 1;
-  const isFirst = pos <= 1;
-  const isLast = pos === avail.length;
 
+  // উপরে ফাঁকা জায়গা থাকলে কমেন্ট বক্স উপরে বসে, না থাকলে নিচে
+  const above = hTop > 190;
   const w = Math.min(320, vp.w - 32);
   const left = Math.min(
     Math.max(16, (hLeft + hRight) / 2 - w / 2),
     Math.max(16, vp.w - w - 16),
   );
-  const below = hBottom + 200 < vp.h;
-  const tipStyle = below
-    ? { top: hBottom + 12, left, width: w }
-    : { bottom: vp.h - hTop + 12, left, width: w };
+  const tailX = Math.min(Math.max((hLeft + hRight) / 2 - left, 28), w - 28);
+  const tipStyle = above
+    ? { bottom: vp.h - hTop + 26, left, width: w }
+    : { top: hBottom + 26, left, width: w };
 
   return (
     <>
+      <style>{"@keyframes pf-tour-bar{from{width:0}to{width:100%}}"}</style>
       {skipPill}
 
       {/* চারপাশ ঝাপসা */}
@@ -259,47 +266,79 @@ function Tour({
         }}
       />
 
-      {/* নির্দেশনা */}
-      <div
-        className="fixed z-[72] rounded-2xl bg-white p-4 text-[#1d1d1f] shadow-2xl"
-        style={tipStyle}
-      >
-        <p className="text-sm font-bold text-[#F58220]">
-          ধাপ {bn(pos)} / {bn(avail.length)}
-        </p>
-        <p className="mt-1 text-lg font-bold">{def.title}</p>
-        <p className="mt-1 text-sm leading-relaxed text-gray-600">
-          {def.text(minQty)}
-        </p>
-        <div className="mt-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5" aria-hidden>
-            {avail.map((a) => (
-              <span
-                key={a}
-                className={`h-2 rounded-full ${
-                  a === index ? "w-5 bg-[#F58220]" : "w-2 bg-gray-300"
-                }`}
-              />
-            ))}
+      {/* কমেন্ট বক্স */}
+      <div className="fixed z-[72]" style={tipStyle}>
+        <div className="relative rounded-md border-2 border-[#1d1d1f] bg-white p-4 text-[#1d1d1f] shadow-[4px_4px_0_0_rgba(0,0,0,0.85)] outline outline-1 outline-offset-[3px] outline-[#1d1d1f]">
+          <p className="text-base font-bold">
+            ধাপ {bn(pos)} / {bn(avail.length)} — {def.title}
+          </p>
+          <p className="mt-1.5 text-sm leading-relaxed text-gray-700">
+            {def.text(minQty)}
+          </p>
+          <div className="mt-3 h-1 overflow-hidden rounded-full bg-gray-200">
+            <div
+              key={index}
+              className="h-full bg-[#F58220]"
+              style={{ animation: `pf-tour-bar ${STEP_MS}ms linear forwards` }}
+            />
           </div>
-          <div className="flex gap-2">
-            {!isFirst && (
-              <button
-                type="button"
-                onClick={() => go(-1)}
-                className="rounded-xl border border-gray-300 px-3 py-2 text-sm"
-              >
-                ← আগের
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => go(1)}
-              className="rounded-xl bg-[#F58220] px-4 py-2 text-sm font-semibold text-white"
+
+          {/* কমেন্ট বক্সের লেজ, যেটা জায়গাটার দিকে ইশারা করে */}
+          {above ? (
+            <svg
+              width="34"
+              height="22"
+              viewBox="0 0 34 22"
+              className="absolute"
+              style={{ left: tailX - 17, bottom: -22 }}
+              aria-hidden
             >
-              {isLast ? "বুঝেছি" : "পরের ধাপ →"}
-            </button>
-          </div>
+              <path
+                d="M2 0 L17 20 L32 0 Z"
+                fill="white"
+                stroke="#1d1d1f"
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M2 -1 L33 -1"
+                stroke="white"
+                strokeWidth="4"
+              />
+              <path
+                d="M8 3 L14 12 M13 2 L17 9 M20 3 L19 9"
+                stroke="#1d1d1f"
+                strokeWidth="1.4"
+              />
+            </svg>
+          ) : (
+            <svg
+              width="34"
+              height="22"
+              viewBox="0 0 34 22"
+              className="absolute"
+              style={{ left: tailX - 17, top: -22 }}
+              aria-hidden
+            >
+              <path
+                d="M2 22 L17 2 L32 22 Z"
+                fill="white"
+                stroke="#1d1d1f"
+                strokeWidth="2"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M2 23 L33 23"
+                stroke="white"
+                strokeWidth="4"
+              />
+              <path
+                d="M8 19 L14 10 M13 20 L17 13 M20 19 L19 13"
+                stroke="#1d1d1f"
+                strokeWidth="1.4"
+              />
+            </svg>
+          )}
         </div>
       </div>
     </>
@@ -353,17 +392,26 @@ export default function OrderHome() {
       .catch(() => {});
   }, []);
 
-  // সাইটে যে-ই ঢুকুক, ধরন বাছাইয়ের পর ট্যুর প্রতিবার নিজে থেকে শুরু হয়
+  // শুধু প্রথমবার সাইটে এলে ধরন বাছাইয়ের পর ট্যুর নিজে থেকে শুরু হয়
   useEffect(() => {
     if (tourChecked || !menu || tier === null) return;
     setTourChecked(true);
+    let seen = false;
+    try {
+      seen = localStorage.getItem(TOUR_KEY) === "1";
+    } catch {}
+    if (seen) return;
     // এখানে ইচ্ছে করেই cleanup নেই: tourChecked বদলালে effect আবার চলে,
     // তখন cleanup থাকলে টাইমার বাতিল হয়ে ট্যুর শুরুই হতো না
     window.setTimeout(() => setTourStep(0), 500);
   }, [menu, tier, tourChecked]);
 
+  // শেষ হলে বা বাদ দিলে ফোনে মনে রাখা হয়, আর নিজে থেকে আসে না
   const endTour = useCallback(() => {
     setTourStep(null);
+    try {
+      localStorage.setItem(TOUR_KEY, "1");
+    } catch {}
   }, []);
 
   const day: Day | null = menu
