@@ -27,32 +27,24 @@ type Notice = {
 };
 
 const API = process.env.NEXT_PUBLIC_API_BASE ?? "";
+const TOUR_KEY = "pf-tour-done";
 
-const TIERS: {
-  key: Tier;
-  label: string;
-  emoji: string;
-  desc: string;
-  bg: string;
-}[] = [
+const TIERS: { key: Tier; label: string; desc: string; bg: string }[] = [
   {
     key: "student",
     label: "স্টুডেন্ট বাজেট",
-    emoji: "🎓",
     desc: "কম দামে, বাজেটের মধ্যে",
     bg: "bg-[#FDE6D3]",
   },
   {
     key: "regular",
     label: "রেগুলার",
-    emoji: "🍽️",
     desc: "রোজকার সাধারণ পিঠা",
     bg: "bg-[#DDEFD9]",
   },
   {
     key: "special",
     label: "স্পেশাল",
-    emoji: "💎",
     desc: "দামী ও বিশেষ পিঠা",
     bg: "bg-[#E6E1F5]",
   },
@@ -86,6 +78,216 @@ function dateShort(iso: string) {
   });
 }
 
+// ─── গাইডেড ট্যুর (পুরো পেজ ঝাপসা, শুধু একটা জায়গা উজ্জ্বল) ─────────────────
+type TourDef = { id: string; title: string; text: (minQty: number) => string };
+
+const TOUR: TourDef[] = [
+  {
+    id: "tour-days",
+    title: "দিন বাছুন",
+    text: () =>
+      "কোন দিনের জন্য পিঠা অর্ডার করবেন, এখান থেকে বেছে নিন। আজ বাদে আগামী কয়েক দিন বাছা যায়।",
+  },
+  {
+    id: "tour-tiers",
+    title: "পিঠার ধরন",
+    text: () =>
+      "রেগুলার, স্পেশাল বা স্টুডেন্ট বাজেট, এখান থেকে যেকোনো সময় বদলাতে পারবেন। ধরন অনুযায়ী দাম বদলায়।",
+  },
+  {
+    id: "tour-first-add",
+    title: "পিঠা যোগ করুন",
+    text: (minQty) =>
+      `পছন্দের পিঠায় "যোগ করুন" চাপুন, এরপর + আর − দিয়ে সংখ্যা ঠিক করুন। কমপক্ষে ${bn(
+        minQty,
+      )}টি পিঠা নিতে হবে।`,
+  },
+  {
+    id: "tour-cart",
+    title: "কার্ট",
+    text: () =>
+      "পিঠা বাছাই শেষ হলে এখানে চাপুন। তারপর নেওয়ার ধরন, আপনার তথ্য ও বিল দেখে অর্ডার করুন।",
+  },
+];
+
+const tourExists = (i: number) => !!document.getElementById(TOUR[i].id);
+
+type Rect = { top: number; left: number; width: number; height: number };
+
+function Tour({
+  index,
+  minQty,
+  onGo,
+  onEnd,
+}: {
+  index: number;
+  minQty: number;
+  onGo: (i: number) => void;
+  onEnd: () => void;
+}) {
+  const def = TOUR[index];
+  const [rect, setRect] = useState<Rect | null>(null);
+  const [vp, setVp] = useState({ w: 0, h: 0 });
+
+  const measure = useCallback(() => {
+    const el = document.getElementById(def.id);
+    setVp({ w: window.innerWidth, h: window.innerHeight });
+    if (!el) {
+      setRect(null);
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+  }, [def.id]);
+
+  useEffect(() => {
+    // এই ধাপের জায়গাটা পেজে না থাকলে (যেমন মেনু খালি) পরের ধাপে চলে যায়
+    if (!tourExists(index)) {
+      let j = index + 1;
+      while (j < TOUR.length && !tourExists(j)) j++;
+      if (j >= TOUR.length) onEnd();
+      else onGo(j);
+      return;
+    }
+
+    const el = document.getElementById(TOUR[index].id);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    measure();
+    const t1 = window.setTimeout(measure, 300);
+    const t2 = window.setTimeout(measure, 700);
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+      document.body.style.overflow = prev;
+    };
+  }, [index, measure, onGo, onEnd]);
+
+  function go(dir: 1 | -1) {
+    let j = index + dir;
+    while (j >= 0 && j < TOUR.length && !tourExists(j)) j += dir;
+    if (j < 0) return;
+    if (j >= TOUR.length) return onEnd();
+    onGo(j);
+  }
+
+  if (!rect) {
+    return (
+      <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[3px]" />
+    );
+  }
+
+  const pad = 8;
+  const hTop = Math.max(0, rect.top - pad);
+  const hLeft = Math.max(0, rect.left - pad);
+  const hBottom = Math.min(vp.h, rect.top + rect.height + pad);
+  const hRight = Math.min(vp.w, rect.left + rect.width + pad);
+  const dim = "fixed z-[70] bg-black/45 backdrop-blur-[3px]";
+
+  const avail = TOUR.map((_, i) => (tourExists(i) ? i : -1)).filter(
+    (i) => i >= 0,
+  );
+  const pos = avail.indexOf(index) + 1;
+  const isFirst = pos <= 1;
+  const isLast = pos === avail.length;
+
+  const w = Math.min(320, vp.w - 32);
+  const left = Math.min(
+    Math.max(16, (hLeft + hRight) / 2 - w / 2),
+    Math.max(16, vp.w - w - 16),
+  );
+  const below = hBottom + 200 < vp.h;
+  const tipStyle = below
+    ? { top: hBottom + 12, left, width: w }
+    : { bottom: vp.h - hTop + 12, left, width: w };
+
+  return (
+    <>
+      {/* চারপাশ ঝাপসা */}
+      <div className={dim} style={{ top: 0, left: 0, right: 0, height: hTop }} />
+      <div
+        className={dim}
+        style={{ top: hBottom, left: 0, right: 0, bottom: 0 }}
+      />
+      <div
+        className={dim}
+        style={{ top: hTop, left: 0, width: hLeft, height: hBottom - hTop }}
+      />
+      <div
+        className={dim}
+        style={{ top: hTop, left: hRight, right: 0, height: hBottom - hTop }}
+      />
+      {/* উজ্জ্বল জায়গার ওপর ক্লিক আটকানো, আর কমলা ফ্রেম */}
+      <div
+        className="fixed z-[70]"
+        style={{
+          top: hTop,
+          left: hLeft,
+          width: hRight - hLeft,
+          height: hBottom - hTop,
+        }}
+      />
+      <div
+        className="pointer-events-none fixed z-[71] rounded-2xl border-2 border-[#F58220]"
+        style={{
+          top: hTop,
+          left: hLeft,
+          width: hRight - hLeft,
+          height: hBottom - hTop,
+        }}
+      />
+
+      {/* নির্দেশনা */}
+      <div
+        className="fixed z-[72] rounded-2xl bg-white p-4 text-[#1d1d1f] shadow-2xl"
+        style={tipStyle}
+      >
+        <p className="text-xs font-semibold text-[#F58220]">
+          ধাপ {bn(pos)} / {bn(avail.length)}
+        </p>
+        <p className="mt-1 text-lg font-bold">{def.title}</p>
+        <p className="mt-1 text-sm leading-relaxed text-gray-600">
+          {def.text(minQty)}
+        </p>
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={onEnd}
+            className="text-sm text-gray-500 underline"
+          >
+            বাদ দিন
+          </button>
+          <div className="flex gap-2">
+            {!isFirst && (
+              <button
+                type="button"
+                onClick={() => go(-1)}
+                className="rounded-xl border border-gray-300 px-3 py-2 text-sm"
+              >
+                ← আগের
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => go(1)}
+              className="rounded-xl bg-[#F58220] px-4 py-2 text-sm font-semibold text-white"
+            >
+              {isLast ? "বুঝেছি" : "পরের ধাপ →"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function OrderHome() {
   const [menu, setMenu] = useState<Menu | null>(null);
   const [failed, setFailed] = useState(false);
@@ -98,6 +300,9 @@ export default function OrderHome() {
   const [cartOpen, setCartOpen] = useState(false);
   const [viewing, setViewing] = useState<string | null>(null);
   const [hint, setHint] = useState("");
+
+  const [tourStep, setTourStep] = useState<number | null>(null);
+  const [tourChecked, setTourChecked] = useState(false);
 
   const load = useCallback(async () => {
     fetch("/api/notice")
@@ -128,6 +333,27 @@ export default function OrderHome() {
       .then((r) => r.json())
       .then(setProfiles)
       .catch(() => {});
+  }, []);
+
+  // প্রথমবার এলে ধরন বাছাইয়ের পর ট্যুর নিজে থেকে শুরু হয়
+  useEffect(() => {
+    if (tourChecked || !menu || tier === null) return;
+    setTourChecked(true);
+    let seen = false;
+    try {
+      seen = localStorage.getItem(TOUR_KEY) === "1";
+    } catch {}
+    if (!seen) {
+      const t = window.setTimeout(() => setTourStep(0), 600);
+      return () => window.clearTimeout(t);
+    }
+  }, [menu, tier, tourChecked]);
+
+  const endTour = useCallback(() => {
+    setTourStep(null);
+    try {
+      localStorage.setItem(TOUR_KEY, "1");
+    } catch {}
   }, []);
 
   const day: Day | null = menu
@@ -211,23 +437,47 @@ export default function OrderHome() {
           </p>
           <h1 className="text-2xl font-bold leading-tight">পিঠা অর্ডার</h1>
         </div>
-        <button
-          type="button"
-          onClick={openCart}
-          aria-label="কার্ট"
-          className="flex items-center gap-2 rounded-2xl bg-[#F58220] px-4 py-2.5 text-white shadow-md"
-        >
-          <span aria-hidden>🛒</span>
-          <span className="text-base font-bold tabular-nums">
-            {bn(totalQty)}
-          </span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setTourStep(0)}
+            aria-label="সাহায্য: কীভাবে অর্ডার করবেন"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F4F5F7] text-lg font-bold text-gray-500"
+          >
+            ?
+          </button>
+          <button
+            id="tour-cart"
+            type="button"
+            onClick={openCart}
+            aria-label="কার্ট"
+            className="flex items-center gap-2 rounded-2xl bg-[#F58220] px-4 py-2.5 text-white shadow-md"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <circle cx="9" cy="20" r="1.5" />
+              <circle cx="18" cy="20" r="1.5" />
+              <path d="M2 3h3l2.7 12.4a1 1 0 0 0 1 .8h9.6a1 1 0 0 0 1-.8L21 7H6" />
+            </svg>
+            <span className="text-base font-bold tabular-nums">
+              {bn(totalQty)}
+            </span>
+          </button>
+        </div>
       </header>
 
       {/* নোটিশ */}
       {shownNotice && (
         <section className="mx-5 mt-3 rounded-2xl bg-[#FFF3E6] p-4">
-          <p className="text-xs font-semibold text-[#F58220]">📢 নোটিশ</p>
+          <p className="text-xs font-semibold text-[#F58220]">নোটিশ</p>
           <p className="mt-1 whitespace-pre-line text-base leading-relaxed">
             {shownNotice.text}
           </p>
@@ -282,7 +532,10 @@ export default function OrderHome() {
           {/* দিন বাছাই (আজ বাদে) */}
           <section className="mt-5">
             <p className="px-5 text-lg font-bold">কোন দিনের জন্য?</p>
-            <div className="mt-3 flex gap-2.5 overflow-x-auto px-5 pb-1">
+            <div
+              id="tour-days"
+              className="mx-3 mt-3 flex gap-2.5 overflow-x-auto px-2 pb-1"
+            >
               {menu.days.map((d, i) => {
                 const on = day?.date === d.date;
                 const closed = d.items.length === 0;
@@ -315,7 +568,10 @@ export default function OrderHome() {
 
           {/* ধরনের ট্যাব */}
           <section className="mt-5 px-5">
-            <div className="flex gap-5 border-b border-gray-100">
+            <div
+              id="tour-tiers"
+              className="flex gap-5 border-b border-gray-100"
+            >
               {TIERS.map((t) => {
                 const on = tier === t.key;
                 return (
@@ -355,7 +611,7 @@ export default function OrderHome() {
               </div>
             ) : (
               <ul className="space-y-3">
-                {items.map((it) => {
+                {items.map((it, idx) => {
                   const q = qty[it.name] ?? 0;
                   const img = profiles[it.name]?.image;
                   const price = tier ? it.prices[tier] : null;
@@ -379,8 +635,8 @@ export default function OrderHome() {
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <span className="flex h-full w-full items-center justify-center text-4xl">
-                            🥮
+                          <span className="flex h-full w-full items-center justify-center text-4xl font-bold text-[#F58220]/50">
+                            {it.name.charAt(0)}
                           </span>
                         )}
                       </button>
@@ -402,7 +658,10 @@ export default function OrderHome() {
                           </p>
                         )}
 
-                        <div className="mt-2">
+                        <div
+                          id={idx === 0 ? "tour-first-add" : undefined}
+                          className="mt-2 inline-block"
+                        >
                           {q === 0 ? (
                             <button
                               type="button"
@@ -462,7 +721,7 @@ export default function OrderHome() {
                 className="flex w-full items-center justify-between rounded-2xl bg-[#F58220] px-5 py-4 text-white shadow-lg"
               >
                 <span className="text-base font-semibold">
-                  🛒 {bn(totalQty)} টি পিঠা
+                  {bn(totalQty)} টি পিঠা
                 </span>
                 <span className="text-base font-bold">
                   {bn(subtotal)} টাকা · কার্ট দেখুন →
@@ -487,16 +746,16 @@ export default function OrderHome() {
                   key={t.key}
                   type="button"
                   onClick={() => setTier(t.key)}
-                  className={`flex w-full items-center gap-4 rounded-3xl p-4 text-left ${t.bg}`}
+                  className={`flex w-full items-center justify-between gap-4 rounded-3xl p-5 text-left ${t.bg}`}
                 >
-                  <span className="text-4xl" aria-hidden>
-                    {t.emoji}
-                  </span>
                   <span>
                     <span className="block text-xl font-bold">{t.label}</span>
                     <span className="block text-sm text-gray-600">
                       {t.desc}
                     </span>
+                  </span>
+                  <span className="text-xl text-gray-500" aria-hidden>
+                    →
                   </span>
                 </button>
               ))}
@@ -516,7 +775,7 @@ export default function OrderHome() {
             className="max-h-[92vh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-3xl bg-white sm:rounded-3xl"
           >
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-3">
-              <span className="text-base font-semibold">🛒 আপনার কার্ট</span>
+              <span className="text-base font-semibold">আপনার কার্ট</span>
               <button
                 type="button"
                 onClick={() => setCartOpen(false)}
@@ -532,7 +791,7 @@ export default function OrderHome() {
                 date={day.date}
                 dateText={`${WEEK_FULL[day.weekday]}, ${dateLong(day.date)}`}
                 tier={tier}
-                tierLabel={`${tierInfo.emoji} ${tierInfo.label}`}
+                tierLabel={tierInfo.label}
                 minQty={minQty}
                 onClose={() => setCartOpen(false)}
                 onSubmitted={() => setQty({})}
@@ -582,6 +841,16 @@ export default function OrderHome() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* গাইডেড ট্যুর */}
+      {tourStep !== null && menu && !cartOpen && tier !== null && (
+        <Tour
+          index={tourStep}
+          minQty={minQty}
+          onGo={setTourStep}
+          onEnd={endTour}
+        />
       )}
     </main>
   );
