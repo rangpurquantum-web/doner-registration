@@ -188,7 +188,7 @@ function Tour({
     <button
       type="button"
       onClick={onEnd}
-      className="fixed right-4 top-4 z-[73] rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#1d1d1f] shadow-lg"
+      className="fixed left-4 top-4 z-[73] rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#1d1d1f] shadow-lg"
     >
       বাদ দিন
     </button>
@@ -392,19 +392,17 @@ export default function OrderHome() {
       .catch(() => {});
   }, []);
 
-  // শুধু প্রথমবার সাইটে এলে ধরন বাছাইয়ের পর ট্যুর নিজে থেকে শুরু হয়
+  // মেনু আসার পর একবার দেখা হয়: প্রথমবার হলে ট্যুর আগে চলে, নইলে সোজা ধরন বাছাই।
+  // ট্যুর শেষ বা বাদ হলে তারপর ধরন বাছাইয়ের পপআপ আসে।
   useEffect(() => {
-    if (tourChecked || !menu || tier === null) return;
-    setTourChecked(true);
+    if (tourChecked || !menu) return;
     let seen = false;
     try {
       seen = localStorage.getItem(TOUR_KEY) === "1";
     } catch {}
-    if (seen) return;
-    // এখানে ইচ্ছে করেই cleanup নেই: tourChecked বদলালে effect আবার চলে,
-    // তখন cleanup থাকলে টাইমার বাতিল হয়ে ট্যুর শুরুই হতো না
-    window.setTimeout(() => setTourStep(0), 500);
-  }, [menu, tier, tourChecked]);
+    setTourChecked(true);
+    if (!seen) setTourStep(0);
+  }, [menu, tourChecked]);
 
   // শেষ হলে বা বাদ দিলে ফোনে মনে রাখা হয়, আর নিজে থেকে আসে না
   const endTour = useCallback(() => {
@@ -791,7 +789,7 @@ export default function OrderHome() {
       )}
 
       {/* ধরন বাছাইয়ের পপআপ (সাইট খুললেই আসে) */}
-      {menu && tier === null && (
+      {menu && tourChecked && tourStep === null && tier === null && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
           <div className="w-full max-w-md rounded-t-3xl bg-white p-5 sm:rounded-3xl">
             <p className="text-2xl font-bold">আপনার পছন্দ বাছুন</p>
@@ -902,7 +900,7 @@ export default function OrderHome() {
       )}
 
       {/* গাইডেড ট্যুর */}
-      {tourStep !== null && menu && !cartOpen && tier !== null && (
+      {tourStep !== null && menu && !cartOpen && (
         <Tour
           index={tourStep}
           minQty={minQty}
