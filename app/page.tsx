@@ -27,7 +27,6 @@ type Notice = {
 };
 
 const API = process.env.NEXT_PUBLIC_API_BASE ?? "";
-const TOUR_KEY = "pf-tour-done";
 
 const TIERS: { key: Tier; label: string; desc: string; bg: string }[] = [
   {
@@ -178,9 +177,23 @@ function Tour({
     onGo(j);
   }
 
+  // এক ক্লিকে ট্যুর বাদ দেওয়ার বাটন: প্রতিটি ধাপে পর্দার উপরের কোণায় থাকে
+  const skipPill = (
+    <button
+      type="button"
+      onClick={onEnd}
+      className="fixed right-4 top-4 z-[73] rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#1d1d1f] shadow-lg"
+    >
+      বাদ দিন
+    </button>
+  );
+
   if (!rect) {
     return (
-      <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[3px]" />
+      <>
+        <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[3px]" />
+        {skipPill}
+      </>
     );
   }
 
@@ -210,6 +223,8 @@ function Tour({
 
   return (
     <>
+      {skipPill}
+
       {/* চারপাশ ঝাপসা */}
       <div className={dim} style={{ top: 0, left: 0, right: 0, height: hTop }} />
       <div
@@ -249,7 +264,7 @@ function Tour({
         className="fixed z-[72] rounded-2xl bg-white p-4 text-[#1d1d1f] shadow-2xl"
         style={tipStyle}
       >
-        <p className="text-xs font-semibold text-[#F58220]">
+        <p className="text-sm font-bold text-[#F58220]">
           ধাপ {bn(pos)} / {bn(avail.length)}
         </p>
         <p className="mt-1 text-lg font-bold">{def.title}</p>
@@ -257,13 +272,16 @@ function Tour({
           {def.text(minQty)}
         </p>
         <div className="mt-4 flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={onEnd}
-            className="text-sm text-gray-500 underline"
-          >
-            বাদ দিন
-          </button>
+          <div className="flex items-center gap-1.5" aria-hidden>
+            {avail.map((a) => (
+              <span
+                key={a}
+                className={`h-2 rounded-full ${
+                  a === index ? "w-5 bg-[#F58220]" : "w-2 bg-gray-300"
+                }`}
+              />
+            ))}
+          </div>
           <div className="flex gap-2">
             {!isFirst && (
               <button
@@ -335,25 +353,17 @@ export default function OrderHome() {
       .catch(() => {});
   }, []);
 
-  // প্রথমবার এলে ধরন বাছাইয়ের পর ট্যুর নিজে থেকে শুরু হয়
+  // সাইটে যে-ই ঢুকুক, ধরন বাছাইয়ের পর ট্যুর প্রতিবার নিজে থেকে শুরু হয়
   useEffect(() => {
     if (tourChecked || !menu || tier === null) return;
     setTourChecked(true);
-    let seen = false;
-    try {
-      seen = localStorage.getItem(TOUR_KEY) === "1";
-    } catch {}
-    if (!seen) {
-      const t = window.setTimeout(() => setTourStep(0), 600);
-      return () => window.clearTimeout(t);
-    }
+    // এখানে ইচ্ছে করেই cleanup নেই: tourChecked বদলালে effect আবার চলে,
+    // তখন cleanup থাকলে টাইমার বাতিল হয়ে ট্যুর শুরুই হতো না
+    window.setTimeout(() => setTourStep(0), 500);
   }, [menu, tier, tourChecked]);
 
   const endTour = useCallback(() => {
     setTourStep(null);
-    try {
-      localStorage.setItem(TOUR_KEY, "1");
-    } catch {}
   }, []);
 
   const day: Day | null = menu
