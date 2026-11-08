@@ -585,12 +585,12 @@ export default function OrderHome() {
 
       {menu && (
         <>
-          {/* দিন বাছাই (আজ বাদে) */}
-          <section className="mt-5">
+          {/* দিন নির্বাচন (আজ বাদে): সব কার্ড সমান আকারের, বড় */}
+          <section className="mt-6">
             <p className="px-5 text-lg font-bold">কোন দিনের জন্য?</p>
             <div
               id="tour-days"
-              className="mx-3 mt-3 flex gap-2.5 overflow-x-auto px-2 pb-1"
+              className="mx-3 mt-3 flex gap-3 overflow-x-auto px-2 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {menu.days.map((d, i) => {
                 const on = day?.date === d.date;
@@ -600,17 +600,17 @@ export default function OrderHome() {
                     key={d.date}
                     type="button"
                     onClick={() => pickDay(d.date)}
-                    className={`flex w-[72px] shrink-0 flex-col items-center rounded-2xl px-2 py-2.5 ${
+                    className={`flex h-[88px] w-[88px] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl ${
                       on
                         ? "bg-[#F58220] text-white shadow-md"
                         : "bg-[#F4F5F7] text-[#1d1d1f]"
                     } ${closed && !on ? "opacity-50" : ""}`}
                   >
-                    <span className="text-sm font-semibold">
+                    <span className="text-base font-bold leading-tight">
                       {i === 0 ? "কাল" : WEEK_SHORT[d.weekday]}
                     </span>
                     <span
-                      className={`mt-0.5 text-xs ${
+                      className={`text-sm leading-tight ${
                         on ? "text-white/90" : "text-gray-500"
                       }`}
                     >
@@ -622,26 +622,38 @@ export default function OrderHome() {
             </div>
           </section>
 
-          {/* ধরনের ট্যাব */}
-          <section className="mt-5 px-5">
+          {/* ক্যাটাগরি: ছোট ও মিনিমাল, একই লাইনে তিনটি */}
+          <section className="mt-9 px-5">
             <div
               id="tour-tiers"
-              className="flex gap-5 border-b border-gray-100"
+              className="grid grid-cols-3 border-b border-gray-200"
             >
-              {TIERS.map((t) => {
+              {TIERS.map((t, i) => {
                 const on = tier === t.key;
                 return (
                   <button
                     key={t.key}
                     type="button"
                     onClick={() => setTier(t.key)}
-                    className={`-mb-px border-b-2 pb-2.5 text-[15px] ${
+                    className={`relative whitespace-nowrap px-1 py-3 text-center text-[14px] ${
                       on
-                        ? "border-[#F58220] font-bold text-[#1d1d1f]"
-                        : "border-transparent text-gray-400"
+                        ? "font-bold text-[#1d1d1f]"
+                        : "font-medium text-gray-500"
                     }`}
                   >
+                    {i > 0 && (
+                      <span
+                        aria-hidden
+                        className="absolute left-0 top-1/4 h-1/2 w-px bg-gray-200"
+                      />
+                    )}
                     {t.label}
+                    {on && (
+                      <span
+                        aria-hidden
+                        className="absolute inset-x-2 -bottom-px h-[3px] rounded-full bg-[#F58220]"
+                      />
+                    )}
                   </button>
                 );
               })}
@@ -649,7 +661,7 @@ export default function OrderHome() {
           </section>
 
           {/* পিঠার তালিকা */}
-          <section className="mt-5 px-5">
+          <section className="mt-6 px-5">
             {day && (
               <p className="mb-3 text-sm text-gray-500">
                 {WEEK_FULL[day.weekday]}, {dateLong(day.date)} তারিখের পিঠা
