@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import LocationPicker, { type Coords } from "./LocationPicker";
+import Tour, { type TourStepDef } from "./Tour";
 
 type Tier = "student" | "regular" | "special";
 type Line = { name: string; qty: number; price: number };
@@ -47,6 +48,74 @@ const cta =
   "h-14 w-full rounded-2xl bg-[#F58220] text-lg font-bold text-white shadow-lg shadow-orange-200 disabled:opacity-60";
 const backBtn =
   "h-14 rounded-2xl border border-gray-300 px-5 text-base font-medium text-[#1d1d1f]";
+
+// ─── চেকআউটের ট্যুর: প্রতিটি ধাপে প্রথমবার ঢুকলে চলে ─────────────────────────
+const TOURS: Record<string, TourStepDef[]> = {
+  "co-1": [
+    {
+      id: "co-type",
+      title: "নেওয়ার ধরন",
+      text: "বুকিং (দোকান থেকে নেওয়া) বা ডেলিভারি, একটি বেছে নিন।",
+    },
+    {
+      id: "co-cta",
+      title: "পরের ধাপ",
+      text: "বাছাই শেষ হলে এই বাটন চেপে এগিয়ে যান।",
+    },
+  ],
+  "co-2": [
+    { id: "co-name", title: "আপনার নাম", text: "অর্ডারের নামটা এখানে লিখুন।" },
+    {
+      id: "co-phone",
+      title: "মোবাইল নম্বর",
+      text: "WhatsApp আছে এমন নম্বর দিন, নিচের ঘরে আবার লিখুন।",
+    },
+    {
+      id: "co-cta",
+      title: "পরের ধাপ",
+      text: "তথ্য দেওয়া হলে এগিয়ে যান।",
+    },
+  ],
+  "co-3": [
+    {
+      id: "co-bill",
+      title: "বিল দেখুন",
+      text: "পিঠার দাম ও চার্জসহ মোট বিল এখানে দেখুন।",
+    },
+    {
+      id: "co-pay",
+      title: "টাকা দেওয়ার ধরন",
+      text: "নগদে নাকি অনলাইনে দেবেন, একটি বেছে নিন।",
+    },
+    {
+      id: "co-cta",
+      title: "অর্ডার করুন",
+      text: "এই বাটন চাপলেই আপনার অর্ডারের আবেদন চলে যাবে।",
+    },
+  ],
+  loc: [
+    {
+      id: "loc-mapbox",
+      title: "ম্যাপে পিন দিন",
+      text: "ম্যাপে চাপ দিয়ে আপনার বাসার জায়গায় পিন দিন। দরকার হলে পিন টেনে ঠিক করুন।",
+    },
+    {
+      id: "loc-gps",
+      title: "বর্তমান লোকেশন",
+      text: "অথবা এই বাটন চাপুন, আপনার এখনকার জায়গা নিজে থেকে বসে যাবে।",
+    },
+    {
+      id: "loc-landmark",
+      title: "ল্যান্ডমার্ক (ঐচ্ছিক)",
+      text: "চাইলে বাড়ির নাম বা পরিচিত কোনো জায়গা লিখুন।",
+    },
+    {
+      id: "loc-confirm",
+      title: "নিশ্চিত করুন",
+      text: "পিন দেওয়া হলে এই বাটন চাপুন।",
+    },
+  ],
+};
 
 // ─── আইকন (ইমোজি নয়, আঁকা আইকন) ──────────────────────────────────────────────
 type IconProps = { className?: string };
@@ -225,6 +294,44 @@ export default function Checkout({
   const [billBusy, setBillBusy] = useState(false);
 
   const bodyRef = useRef<HTMLDivElement>(null);
+
+  // ট্যুর: প্রতিটি ধাপে প্রথমবার ঢুকলে নিজে থেকে চলে, পরে আর আসে না।
+  // হেডারের "?" বাটনে যেকোনো সময় আবার দেখা যায়।
+  const [tourKey, setTourKey] = useState<string | null>(null);
+
+  function startTour(key: string, force = false) {
+    if (!force) {
+      try {
+        if (localStorage.getItem(`pf-tour-${key}`) === "1") return;
+      } catch {}
+    }
+    setTourKey(key);
+  }
+
+  function endCheckoutTour() {
+    if (tourKey) {
+      try {
+        localStorage.setItem(`pf-tour-${tourKey}`, "1");
+      } catch {}
+    }
+    setTourKey(null);
+  }
+
+  // কার্টের নতুন ধাপে গেলেই ওই ধাপের ট্যুর
+  useEffect(() => {
+    if (done !== false || locOpen) return;
+    const t = window.setTimeout(() => startTour(`co-${step}`), 450);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, done, locOpen]);
+
+  // লোকেশনের ম্যাপ খুললে লোকেশনের ট্যুর
+  useEffect(() => {
+    if (!locOpen) return;
+    const t = window.setTimeout(() => startTour("loc"), 500);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locOpen]);
 
   const chosen = lines.map((l) => ({ name: l.name, qty: l.qty }));
   const totalQty = lines.reduce((s, l) => s + l.qty, 0);
@@ -407,14 +514,26 @@ export default function Checkout({
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="কার্ট বন্ধ করুন"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F4F5F7] text-lg text-gray-500"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-2">
+              {done === false && (
+                <button
+                  type="button"
+                  onClick={() => startTour(`co-${step}`, true)}
+                  aria-label="সাহায্য: এই ধাপে কী করবেন"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F4F5F7] text-base font-bold text-gray-500"
+                >
+                  ?
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="কার্ট বন্ধ করুন"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F4F5F7] text-lg text-gray-500"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
 
@@ -487,7 +606,7 @@ export default function Checkout({
                 <>
                   <p className="text-lg font-bold">পিঠা কীভাবে নিতে চান?</p>
 
-                  <div className="space-y-3">
+                  <div id="co-type" className="space-y-3">
                     {(
                       [
                         {
@@ -589,13 +708,14 @@ export default function Checkout({
                   <p className="text-lg font-bold">আপনার তথ্য</p>
 
                   <input
+                    id="co-name"
                     className={field}
                     placeholder="আপনার নাম"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
 
-                  <div className="space-y-2">
+                  <div id="co-phone" className="space-y-2">
                     <input
                       className={field}
                       placeholder="মোবাইল নম্বর (WhatsApp আছে এমন)"
@@ -671,17 +791,19 @@ export default function Checkout({
                     </div>
                   </div>
 
-                  {type && bill ? (
-                    <div className={billBusy ? "opacity-60" : ""}>
-                      <BillBox bill={bill} type={type} />
-                    </div>
-                  ) : billErr ? (
-                    <p className="text-sm text-red-600">{billErr}</p>
-                  ) : (
-                    <p className="text-sm text-gray-500">বিল হিসাব হচ্ছে…</p>
-                  )}
+                  <div id="co-bill">
+                    {type && bill ? (
+                      <div className={billBusy ? "opacity-60" : ""}>
+                        <BillBox bill={bill} type={type} />
+                      </div>
+                    ) : billErr ? (
+                      <p className="text-sm text-red-600">{billErr}</p>
+                    ) : (
+                      <p className="text-sm text-gray-500">বিল হিসাব হচ্ছে…</p>
+                    )}
+                  </div>
 
-                  <div className="space-y-3">
+                  <div id="co-pay" className="space-y-3">
                     <p className="text-lg font-bold">টাকা কীভাবে দেবেন?</p>
                     {(
                       [
@@ -735,7 +857,10 @@ export default function Checkout({
         </div>
 
         {/* নিচের বাটন: সবসময় দেখা যায় */}
-        <div className="shrink-0 border-t border-gray-100 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+        <div
+          id="co-cta"
+          className="shrink-0 border-t border-gray-100 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3"
+        >
           {error && done === false && (
             <p className="mb-2 rounded-xl bg-red-50 px-3 py-2 text-center text-sm text-red-700">
               {error}
@@ -806,6 +931,7 @@ export default function Checkout({
               <LocationPicker value={loc} onChange={setLoc} />
 
               <input
+                id="loc-landmark"
                 className={field}
                 placeholder="বাড়ির নাম বা ল্যান্ডমার্ক (ঐচ্ছিক)"
                 value={landmark}
@@ -828,12 +954,26 @@ export default function Checkout({
                 লোকেশন শুধু ডেলিভারির কাজে ব্যবহার করা হবে।
               </p>
 
-              <button type="button" onClick={confirmLoc} className={cta}>
+              <button
+                id="loc-confirm"
+                type="button"
+                onClick={confirmLoc}
+                className={cta}
+              >
                 নিশ্চিত করুন
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ট্যুর */}
+      {tourKey && (
+        <Tour
+          key={tourKey}
+          steps={TOURS[tourKey]}
+          onEnd={endCheckoutTour}
+        />
       )}
     </>
   );
