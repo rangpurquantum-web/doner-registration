@@ -3,8 +3,9 @@
 // স্টক রিপো: page.tsx (পুরো ফাইল বদলে দিন)
 // Checkout.tsx একই ফোল্ডারে থাকতে হবে
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Tour, { type TourStepDef } from "./Tour";
 
 const Checkout = dynamic(() => import("./Checkout"), {
   ssr: false,
@@ -78,273 +79,6 @@ function dateShort(iso: string) {
   });
 }
 
-// ─── গাইডেড ট্যুর (পুরো পেজ ঝাপসা, শুধু একটা জায়গা উজ্জ্বল) ─────────────────
-const STEP_MS = 4000; // প্রতিটি ধাপ কত মিলিসেকেন্ড থাকবে, তারপর নিজে পরের ধাপে যায়
-
-type TourDef = { id: string; title: string; text: (minQty: number) => string };
-
-const TOUR: TourDef[] = [
-  {
-    id: "tour-days",
-    title: "দিন নির্বাচন",
-    text: () => "কোন দিনের পিঠা চান, বেছে নিন।",
-  },
-  {
-    id: "tour-tiers",
-    title: "ক্যাটাগরি নির্বাচন",
-    text: () => "রেগুলার, স্পেশাল বা স্টুডেন্ট বাজেট বেছে নিন।",
-  },
-  {
-    id: "tour-first-add",
-    title: "পিঠা যোগ করুন",
-    text: (minQty) =>
-      `পছন্দের পিঠা যোগ করুন। কমপক্ষে ${bn(minQty)}টি নিতে হবে।`,
-  },
-  {
-    id: "tour-cart",
-    title: "কার্ট ও অর্ডার",
-    text: () => "কার্টে গিয়ে তথ্য পূরণ করে অর্ডার সম্পন্ন করুন।",
-  },
-];
-
-const tourExists = (i: number) => !!document.getElementById(TOUR[i].id);
-
-type Rect = { top: number; left: number; width: number; height: number };
-
-function Tour({
-  index,
-  minQty,
-  onGo,
-  onEnd,
-}: {
-  index: number;
-  minQty: number;
-  onGo: (i: number) => void;
-  onEnd: () => void;
-}) {
-  const def = TOUR[index];
-  const [rect, setRect] = useState<Rect | null>(null);
-  const [vp, setVp] = useState({ w: 0, h: 0 });
-
-  const measure = useCallback(() => {
-    const el = document.getElementById(def.id);
-    setVp({ w: window.innerWidth, h: window.innerHeight });
-    if (!el) {
-      setRect(null);
-      return;
-    }
-    const r = el.getBoundingClientRect();
-    setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
-  }, [def.id]);
-
-  useEffect(() => {
-    // এই ধাপের জায়গাটা পেজে না থাকলে (যেমন মেনু খালি) পরের ধাপে চলে যায়
-    if (!tourExists(index)) {
-      let j = index + 1;
-      while (j < TOUR.length && !tourExists(j)) j++;
-      if (j >= TOUR.length) onEnd();
-      else onGo(j);
-      return;
-    }
-
-    const el = document.getElementById(TOUR[index].id);
-    el?.scrollIntoView({ block: "center", behavior: "smooth" });
-    measure();
-    const t1 = window.setTimeout(measure, 300);
-    const t2 = window.setTimeout(measure, 700);
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
-      document.body.style.overflow = prev;
-    };
-  }, [index, measure, onGo, onEnd]);
-
-  function next() {
-    let j = index + 1;
-    while (j < TOUR.length && !tourExists(j)) j++;
-    if (j >= TOUR.length) return onEnd();
-    onGo(j);
-  }
-
-  // জায়গাটা পর্দায় এসে গেলে ৪ সেকেন্ড পর নিজে নিজে পরের ধাপে যায়
-  const ready = rect !== null;
-  useEffect(() => {
-    if (!ready) return;
-    const t = window.setTimeout(next, STEP_MS);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, ready]);
-
-  // এক ক্লিকে ট্যুর বাদ দেওয়ার বাটন: প্রতিটি ধাপে পর্দার উপরের কোণায় থাকে
-  const skipPill = (
-    <button
-      type="button"
-      onClick={onEnd}
-      className="fixed left-4 top-4 z-[73] rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#1d1d1f] shadow-lg"
-    >
-      বাদ দিন
-    </button>
-  );
-
-  if (!rect) {
-    return (
-      <>
-        <div className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[3px]" />
-        {skipPill}
-      </>
-    );
-  }
-
-  const pad = 8;
-  const hTop = Math.max(0, rect.top - pad);
-  const hLeft = Math.max(0, rect.left - pad);
-  const hBottom = Math.min(vp.h, rect.top + rect.height + pad);
-  const hRight = Math.min(vp.w, rect.left + rect.width + pad);
-  const dim = "fixed z-[70] bg-black/45 backdrop-blur-[3px]";
-
-  const avail = TOUR.map((_, i) => (tourExists(i) ? i : -1)).filter(
-    (i) => i >= 0,
-  );
-  const pos = avail.indexOf(index) + 1;
-
-  // উপরে ফাঁকা জায়গা থাকলে কমেন্ট বক্স উপরে বসে, না থাকলে নিচে
-  const above = hTop > 190;
-  const w = Math.min(320, vp.w - 32);
-  const left = Math.min(
-    Math.max(16, (hLeft + hRight) / 2 - w / 2),
-    Math.max(16, vp.w - w - 16),
-  );
-  const tailX = Math.min(Math.max((hLeft + hRight) / 2 - left, 28), w - 28);
-  const tipStyle = above
-    ? { bottom: vp.h - hTop + 26, left, width: w }
-    : { top: hBottom + 26, left, width: w };
-
-  return (
-    <>
-      <style>{"@keyframes pf-tour-bar{from{width:0}to{width:100%}}"}</style>
-      {skipPill}
-
-      {/* চারপাশ ঝাপসা */}
-      <div className={dim} style={{ top: 0, left: 0, right: 0, height: hTop }} />
-      <div
-        className={dim}
-        style={{ top: hBottom, left: 0, right: 0, bottom: 0 }}
-      />
-      <div
-        className={dim}
-        style={{ top: hTop, left: 0, width: hLeft, height: hBottom - hTop }}
-      />
-      <div
-        className={dim}
-        style={{ top: hTop, left: hRight, right: 0, height: hBottom - hTop }}
-      />
-      {/* উজ্জ্বল জায়গার ওপর ক্লিক আটকানো, আর কমলা ফ্রেম */}
-      <div
-        className="fixed z-[70]"
-        style={{
-          top: hTop,
-          left: hLeft,
-          width: hRight - hLeft,
-          height: hBottom - hTop,
-        }}
-      />
-      <div
-        className="pointer-events-none fixed z-[71] rounded-2xl border-2 border-[#F58220]"
-        style={{
-          top: hTop,
-          left: hLeft,
-          width: hRight - hLeft,
-          height: hBottom - hTop,
-        }}
-      />
-
-      {/* কমেন্ট বক্স */}
-      <div className="fixed z-[72]" style={tipStyle}>
-        <div className="relative rounded-md border-2 border-[#1d1d1f] bg-white p-4 text-[#1d1d1f] shadow-[4px_4px_0_0_rgba(0,0,0,0.85)] outline outline-1 outline-offset-[3px] outline-[#1d1d1f]">
-          <p className="text-base font-bold">
-            ধাপ {bn(pos)} / {bn(avail.length)} — {def.title}
-          </p>
-          <p className="mt-1.5 text-sm leading-relaxed text-gray-700">
-            {def.text(minQty)}
-          </p>
-          <div className="mt-3 h-1 overflow-hidden rounded-full bg-gray-200">
-            <div
-              key={index}
-              className="h-full bg-[#F58220]"
-              style={{ animation: `pf-tour-bar ${STEP_MS}ms linear forwards` }}
-            />
-          </div>
-
-          {/* কমেন্ট বক্সের লেজ, যেটা জায়গাটার দিকে ইশারা করে */}
-          {above ? (
-            <svg
-              width="34"
-              height="22"
-              viewBox="0 0 34 22"
-              className="absolute"
-              style={{ left: tailX - 17, bottom: -22 }}
-              aria-hidden
-            >
-              <path
-                d="M2 0 L17 20 L32 0 Z"
-                fill="white"
-                stroke="#1d1d1f"
-                strokeWidth="2"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M2 -1 L33 -1"
-                stroke="white"
-                strokeWidth="4"
-              />
-              <path
-                d="M8 3 L14 12 M13 2 L17 9 M20 3 L19 9"
-                stroke="#1d1d1f"
-                strokeWidth="1.4"
-              />
-            </svg>
-          ) : (
-            <svg
-              width="34"
-              height="22"
-              viewBox="0 0 34 22"
-              className="absolute"
-              style={{ left: tailX - 17, top: -22 }}
-              aria-hidden
-            >
-              <path
-                d="M2 22 L17 2 L32 22 Z"
-                fill="white"
-                stroke="#1d1d1f"
-                strokeWidth="2"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M2 23 L33 23"
-                stroke="white"
-                strokeWidth="4"
-              />
-              <path
-                d="M8 19 L14 10 M13 20 L17 13 M20 19 L19 13"
-                stroke="#1d1d1f"
-                strokeWidth="1.4"
-              />
-            </svg>
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
-
 export default function OrderHome() {
   const [menu, setMenu] = useState<Menu | null>(null);
   const [failed, setFailed] = useState(false);
@@ -358,7 +92,10 @@ export default function OrderHome() {
   const [viewing, setViewing] = useState<string | null>(null);
   const [hint, setHint] = useState("");
 
-  const [tourStep, setTourStep] = useState<number | null>(null);
+  const [tourOn, setTourOn] = useState(false);
+  const [fromLink, setFromLink] = useState(false);
+  const [linkNote, setLinkNote] = useState("");
+  const linkApplied = useRef(false);
   const [tourChecked, setTourChecked] = useState(false);
 
   const load = useCallback(async () => {
@@ -392,6 +129,64 @@ export default function OrderHome() {
       .catch(() => {});
   }, []);
 
+  // রূপকথা এজেন্টের লিংক: ?date=YYYY-MM-DD&tier=regular&items=নাম~সংখ্যা|নাম~সংখ্যা
+  // লিংকে ঢুকলে তারিখ, ক্যাটাগরি ও পিঠা কার্টে সাজানো থাকে, আর কার্ট খুলে যায়
+  useEffect(() => {
+    if (!menu || linkApplied.current) return;
+    linkApplied.current = true;
+
+    const q = new URLSearchParams(window.location.search);
+    const rawItems = q.get("items");
+    if (!rawItems) return;
+
+    const date = q.get("date") ?? "";
+    const t = q.get("tier") ?? "";
+    const tierKey = (["student", "regular", "special"] as const).find(
+      (k) => k === t,
+    );
+    const dayHit = menu.days.find(
+      (d) => d.date === date && d.items.length > 0,
+    );
+    if (!dayHit || !tierKey) {
+      setLinkNote("লিংকের তারিখ বা ক্যাটাগরি ঠিক নেই, নিচ থেকে নিজে বেছে নিন।");
+      return;
+    }
+
+    const wanted: Record<string, number> = {};
+    const missing: string[] = [];
+    for (const part of rawItems.split("|")) {
+      const i = part.lastIndexOf("~");
+      if (i < 1) continue;
+      const name = part.slice(0, i).trim();
+      const n = Math.floor(Number(part.slice(i + 1)));
+      if (!name || !(n >= 1 && n <= 100)) continue;
+      if (dayHit.items.some((it) => it.name === name)) {
+        wanted[name] = Math.min(100, (wanted[name] ?? 0) + n);
+      } else {
+        missing.push(name);
+      }
+    }
+
+    setSelDate(dayHit.date);
+    setTier(tierKey);
+    setQty(wanted);
+    setFromLink(true);
+    if (missing.length > 0) {
+      setLinkNote(`${missing.join(", ")} ওই দিনের মেনুতে নেই, তাই বাদ গেছে।`);
+    }
+
+    const total = Object.values(wanted).reduce((a, b) => a + b, 0);
+    if (total > 0 && total < menu.minQty) {
+      setHint(
+        `একটি অর্ডারে কমপক্ষে ${bn(menu.minQty)}টি পিঠা নিতে হবে (আরও ${bn(
+          menu.minQty - total,
+        )}টি যোগ করুন)`,
+      );
+    } else if (total > 0 && menu.open) {
+      setCartOpen(true);
+    }
+  }, [menu]);
+
   // মেনু আসার পর একবার দেখা হয়: প্রথমবার হলে ট্যুর আগে চলে, নইলে সোজা ধরন বাছাই।
   // ট্যুর শেষ বা বাদ হলে তারপর ধরন বাছাইয়ের পপআপ আসে।
   useEffect(() => {
@@ -401,12 +196,13 @@ export default function OrderHome() {
       seen = localStorage.getItem(TOUR_KEY) === "1";
     } catch {}
     setTourChecked(true);
-    if (!seen) setTourStep(0);
+    const fromAgent = new URLSearchParams(window.location.search).has("items");
+    if (!seen && !fromAgent) setTourOn(true);
   }, [menu, tourChecked]);
 
   // শেষ হলে বা বাদ দিলে ফোনে মনে রাখা হয়, আর নিজে থেকে আসে না
   const endTour = useCallback(() => {
-    setTourStep(null);
+    setTourOn(false);
     try {
       localStorage.setItem(TOUR_KEY, "1");
     } catch {}
@@ -435,6 +231,29 @@ export default function OrderHome() {
   const totalQty = lines.reduce((s, l) => s + l.qty, 0);
   const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
   const minQty = menu?.minQty ?? 5;
+
+  const homeTour: TourStepDef[] = [
+    {
+      id: "tour-days",
+      title: "দিন নির্বাচন",
+      text: "কোন দিনের পিঠা চান, বেছে নিন।",
+    },
+    {
+      id: "tour-tiers",
+      title: "ক্যাটাগরি নির্বাচন",
+      text: "রেগুলার, স্পেশাল বা স্টুডেন্ট বাজেট বেছে নিন।",
+    },
+    {
+      id: "tour-first-add",
+      title: "পিঠা যোগ করুন",
+      text: `পছন্দের পিঠা যোগ করুন। কমপক্ষে ${bn(minQty)}টি নিতে হবে।`,
+    },
+    {
+      id: "tour-cart",
+      title: "কার্ট ও অর্ডার",
+      text: "কার্টে গিয়ে তথ্য পূরণ করে অর্ডার সম্পন্ন করুন।",
+    },
+  ];
 
   const shownNotice =
     notice &&
@@ -496,7 +315,7 @@ export default function OrderHome() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setTourStep(0)}
+            onClick={() => setTourOn(true)}
             aria-label="সাহায্য: কীভাবে অর্ডার করবেন"
             className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F4F5F7] text-lg font-bold text-gray-500"
           >
@@ -529,6 +348,25 @@ export default function OrderHome() {
           </button>
         </div>
       </header>
+
+      {/* রূপকথার লিংকে এলে */}
+      {(fromLink || linkNote) && (
+        <section className="mx-5 mt-3 rounded-2xl bg-[#E4F1E1] p-4">
+          {fromLink && (
+            <>
+              <p className="text-sm font-bold text-green-800">
+                রূপকথা আপনার জন্য কার্ট সাজিয়ে দিয়েছে
+              </p>
+              <p className="mt-1 text-sm text-gray-700">
+                পিঠা ও সংখ্যা দেখে নিন, দরকার হলে বদলান, তারপর অর্ডার করুন।
+              </p>
+            </>
+          )}
+          {linkNote && (
+            <p className="mt-1 text-sm text-amber-800">{linkNote}</p>
+          )}
+        </section>
+      )}
 
       {/* নোটিশ */}
       {shownNotice && (
@@ -801,7 +639,7 @@ export default function OrderHome() {
       )}
 
       {/* ধরন বাছাইয়ের পপআপ (সাইট খুললেই আসে) */}
-      {menu && tourChecked && tourStep === null && tier === null && (
+      {menu && tourChecked && !tourOn && tier === null && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
           <div className="w-full max-w-md rounded-t-3xl bg-white p-5 sm:rounded-3xl">
             <p className="text-2xl font-bold">আপনার পছন্দ বাছুন</p>
@@ -850,7 +688,10 @@ export default function OrderHome() {
               tierLabel={tierInfo.label}
               minQty={minQty}
               onClose={() => setCartOpen(false)}
-              onSubmitted={() => setQty({})}
+              onSubmitted={() => {
+                setQty({});
+                setFromLink(false);
+              }}
             />
           </div>
         </div>
@@ -899,13 +740,8 @@ export default function OrderHome() {
       )}
 
       {/* গাইডেড ট্যুর */}
-      {tourStep !== null && menu && !cartOpen && (
-        <Tour
-          index={tourStep}
-          minQty={minQty}
-          onGo={setTourStep}
-          onEnd={endTour}
-        />
+      {tourOn && menu && !cartOpen && (
+        <Tour steps={homeTour} onEnd={endTour} />
       )}
     </main>
   );
