@@ -58,6 +58,11 @@ const TOURS: Record<string, TourStepDef[]> = {
       text: "বুকিং (দোকান থেকে নেওয়া) বা ডেলিভারি, একটি বেছে নিন।",
     },
     {
+      id: "co-loc",
+      title: "ডেলিভারি লোকেশন",
+      text: "ডেলিভারি নিলে এই বাটন চাপুন, আপনার এখনকার লোকেশন নিজে থেকে নেওয়া হবে।",
+    },
+    {
       id: "co-cta",
       title: "পরের ধাপ",
       text: "বাছাই শেষ হলে এই বাটন চেপে এগিয়ে যান।",
@@ -284,6 +289,8 @@ export default function Checkout({
   const [loc, setLoc] = useState<Coords | null>(null);
   const [locOpen, setLocOpen] = useState(false);
   const [locErr, setLocErr] = useState("");
+  const [locBusy, setLocBusy] = useState(false);
+  const [gpsErr, setGpsErr] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -351,6 +358,38 @@ export default function Checkout({
     setTimeout(() => {
       bodyRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     }, 0);
+  }
+
+  // "ডেলিভারি লোকেশন দিন" চাপলেই ফোনের লোকেশন নেওয়া হয়।
+  // না পেলে (অনুমতি না দিলে বা ব্যর্থ হলে) ম্যাপ খুলে পিন দেওয়ার সুযোগ দেওয়া হয়।
+  function takeGps() {
+    setError("");
+    setGpsErr("");
+    if (!navigator.geolocation) {
+      setGpsErr("এই ব্রাউজারে লোকেশন সাপোর্ট নেই। ম্যাপে পিন দিন।");
+      setLocErr("");
+      setLocOpen(true);
+      return;
+    }
+    setLocBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        setLoc({ lat: latitude, lng: longitude, accuracy });
+        setLocBusy(false);
+      },
+      (e) => {
+        setLocBusy(false);
+        setGpsErr(
+          e.code === 1
+            ? "লোকেশনের অনুমতি দেওয়া হয়নি। ম্যাপে পিন দিন।"
+            : "লোকেশন পাওয়া যায়নি। ম্যাপে পিন দিন।",
+        );
+        setLocErr("");
+        setLocOpen(true);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
   }
 
   function openLoc() {
@@ -430,6 +469,8 @@ export default function Checkout({
     if (!type) return setError("বুকিং না ডেলিভারি, একটি বেছে নিন");
     if (type === "delivery") {
       if (!loc) return setError("ডেলিভারি লোকেশন দিন");
+      if (billBusy)
+        return setError("ডেলিভারি চার্জ হিসাব হচ্ছে, একটু অপেক্ষা করুন");
       if (billErr) return setError(billErr);
     }
     goStep(2);
@@ -664,40 +705,79 @@ export default function Checkout({
                     })}
                   </div>
 
-                  {/* ডেলিভারিতে শুধু একটা বাটন। ম্যাপ খোলে বাটন চাপলে */}
+                  {/* ডেলিভারিতে শুধু একটা বাটন: চাপলেই ফোনের লোকেশন নেওয়া হয় */}
                   {type === "delivery" &&
                     (loc ? (
-                      <div className="flex items-center gap-3 rounded-2xl bg-[#E4F1E1] p-4">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-600 text-white">
-                          <CheckIcon className="h-5 w-5" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold text-green-800">
-                            ডেলিভারি লোকেশন দেওয়া হয়েছে
-                          </p>
-                          {landmark.trim() && (
-                            <p className="truncate text-sm">
-                              {landmark.trim()}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-3 rounded-2xl bg-[#E4F1E1] p-4">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-600 text-white">
+                            <CheckIcon className="h-5 w-5" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold text-green-800">
+                              ডেলিভারি লোকেশন দেওয়া হয়েছে
                             </p>
-                          )}
+                            {landmark.trim() && (
+                              <p className="truncate text-sm">
+                                {landmark.trim()}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={openLoc}
+                            className="shrink-0 text-sm font-semibold text-[#F58220] underline"
+                          >
+                            ম্যাপে দেখুন
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={openLoc}
-                          className="shrink-0 text-sm font-semibold text-[#F58220] underline"
-                        >
-                          বদলান
-                        </button>
+                        {billBusy && (
+                          <p className="text-xs text-gray-500">
+                            ডেলিভারি চার্জ হিসাব হচ্ছে…
+                          </p>
+                        )}
+                        {billErr && (
+                          <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+                            {billErr}
+                            {billErr.includes("ডেলিভারি দেওয়া হয় না") &&
+                              " বুকিং দিয়ে দোকান থেকে নিতে পারেন।"}
+                          </p>
+                        )}
                       </div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={openLoc}
-                        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#F58220] bg-white px-4 py-4 text-lg font-bold text-[#F58220]"
-                      >
-                        <PinIcon className="h-6 w-6" />
-                        ডেলিভারি লোকেশন দিন
-                      </button>
+                      <div className="space-y-2">
+                        <button
+                          id="co-loc"
+                          type="button"
+                          onClick={takeGps}
+                          disabled={locBusy}
+                          className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#F58220] bg-white px-4 py-4 text-lg font-bold text-[#F58220] disabled:opacity-70"
+                        >
+                          {locBusy ? (
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              className="h-6 w-6 animate-spin"
+                              aria-hidden
+                            >
+                              <path d="M12 3a9 9 0 1 0 9 9" />
+                            </svg>
+                          ) : (
+                            <PinIcon className="h-6 w-6" />
+                          )}
+                          {locBusy
+                            ? "লোকেশন খোঁজা হচ্ছে…"
+                            : "ডেলিভারি লোকেশন দিন"}
+                        </button>
+                        {gpsErr && (
+                          <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+                            {gpsErr}
+                          </p>
+                        )}
+                      </div>
                     ))}
                 </>
               )}
