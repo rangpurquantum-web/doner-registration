@@ -832,7 +832,7 @@ export default function OrderHome() {
         </div>
       )}
 
-      {/* কার্ট / চেকআউট */}
+      {/* কার্ট / চেকআউট: নিচ থেকে ওঠা বটম শিট, পর্দার প্রায় ৯০% */}
       {cartOpen && menu && tier && day && tierInfo && (
         <div
           onClick={() => setCartOpen(false)}
@@ -840,31 +840,18 @@ export default function OrderHome() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="max-h-[92vh] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-3xl bg-white sm:rounded-3xl"
+            className="flex h-[90dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white sm:h-[85dvh] sm:rounded-3xl"
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-3">
-              <span className="text-base font-semibold">আপনার কার্ট</span>
-              <button
-                type="button"
-                onClick={() => setCartOpen(false)}
-                aria-label="কার্ট বন্ধ করুন"
-                className="px-2 text-xl leading-none text-gray-400"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-4">
-              <Checkout
-                lines={lines}
-                date={day.date}
-                dateText={`${WEEK_FULL[day.weekday]}, ${dateLong(day.date)}`}
-                tier={tier}
-                tierLabel={tierInfo.label}
-                minQty={minQty}
-                onClose={() => setCartOpen(false)}
-                onSubmitted={() => setQty({})}
-              />
-            </div>
+            <Checkout
+              lines={lines}
+              date={day.date}
+              dateText={`${WEEK_FULL[day.weekday]}, ${dateLong(day.date)}`}
+              tier={tier}
+              tierLabel={tierInfo.label}
+              minQty={minQty}
+              onClose={() => setCartOpen(false)}
+              onSubmitted={() => setQty({})}
+            />
           </div>
         </div>
       )}
