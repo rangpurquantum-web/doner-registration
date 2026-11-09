@@ -1,5 +1,7 @@
 "use client";
 
+// স্টক রিপো: LocationPicker.tsx (পুরো ফাইল বদলে দিন)
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import type { Map as LMap, Marker } from "leaflet";
@@ -8,6 +10,61 @@ export type Coords = { lat: number; lng: number; accuracy?: number };
 
 // দোকানের লোকেশন (ম্যাপ প্রথমে এখান থেকে খুলবে)
 const SHOP = { lat: 25.759388, lng: 89.244539 };
+
+// ম্যাপের পিন: কমলা আঁকা পিন (ইমোজি নয়)
+const PIN_HTML =
+  '<svg width="34" height="42" viewBox="0 0 24 30" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))"><path d="M12 29s-9-8.2-9-16a9 9 0 1 1 18 0c0 7.8-9 16-9 16z" fill="#F58220" stroke="#ffffff" stroke-width="1.6"/><circle cx="12" cy="13" r="3.6" fill="#ffffff"/></svg>';
+
+function GpsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      className={className}
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="7" />
+      <circle cx="12" cy="12" r="2.5" fill="currentColor" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+    </svg>
+  );
+}
+
+function SpinnerIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      className={`animate-spin ${className ?? ""}`}
+      aria-hidden
+    >
+      <path d="M12 3a9 9 0 1 0 9 9" />
+    </svg>
+  );
+}
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
 
 export default function LocationPicker({
   value,
@@ -42,10 +99,10 @@ export default function LocationPicker({
         markerRef.current.setLatLng([lat, lng]);
       } else {
         const icon = L.divIcon({
-          html: '<div style="font-size:30px;line-height:1">📍</div>',
+          html: PIN_HTML,
           className: "",
-          iconSize: [30, 30],
-          iconAnchor: [15, 28],
+          iconSize: [34, 42],
+          iconAnchor: [17, 40],
         });
         const m = L.marker([lat, lng], { icon, draggable: true }).addTo(map);
         m.on("dragend", () => {
@@ -130,40 +187,62 @@ export default function LocationPicker({
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-sm text-[#9db8aa]">
+    <div className="space-y-3">
+      <p className="text-sm text-gray-500">
         ম্যাপে ট্যাপ করে আপনার বাসার জায়গায় পিন দিন। পিন ধরে টেনে ঠিক করতে
         পারবেন।
       </p>
 
-      <div className="relative z-0 overflow-hidden rounded-xl border border-[#f3f1e8]/15">
+      <div
+        id="loc-mapbox"
+        className="relative z-0 overflow-hidden rounded-2xl border border-gray-200"
+      >
         <div ref={boxRef} className="h-64 w-full" />
       </div>
 
       <button
+        id="loc-gps"
         type="button"
         onClick={locate}
         disabled={busy}
-        className="w-full rounded-xl border border-[#9ad6b0]/40 bg-[#9ad6b0]/10 py-3 text-[#9ad6b0] disabled:opacity-50"
+        className="flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-[#F58220] bg-[#FFF3E6] px-4 py-4 text-lg font-bold text-[#C65F00] active:bg-[#FFE6CC] disabled:opacity-70"
       >
-        {busy ? "লোকেশন খোঁজা হচ্ছে…" : "📍 লোকেশন দিতে ক্লিক করুন"}
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F58220] text-white">
+          {busy ? (
+            <SpinnerIcon className="h-5 w-5" />
+          ) : (
+            <GpsIcon className="h-5 w-5" />
+          )}
+        </span>
+        {busy ? "লোকেশন খোঁজা হচ্ছে…" : "লোকেশন দিতে ক্লিক করুন"}
       </button>
 
-      {err && <p className="text-sm text-[#e3a83f]">{err}</p>}
+      {err && (
+        <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+          {err}
+        </p>
+      )}
 
       {value ? (
-        <p className="text-xs text-[#9db8aa]">
-          ✅ পিন দেওয়া হয়েছে।{" "}
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-[#E4F1E1] px-4 py-3">
+          <span className="flex items-center gap-2 text-sm font-bold text-green-800">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-600 text-white">
+              <CheckIcon className="h-4 w-4" />
+            </span>
+            পিন দেওয়া হয়েছে
+          </span>
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="underline"
+            className="text-sm font-semibold text-gray-600 underline"
           >
             মুছুন
           </button>
-        </p>
+        </div>
       ) : (
-        <p className="text-xs text-[#e3a83f]">এখনো পিন দেওয়া হয়নি</p>
+        <p className="rounded-xl bg-[#FFF3E6] px-3 py-2 text-sm text-[#C65F00]">
+          এখনো পিন দেওয়া হয়নি
+        </p>
       )}
     </div>
   );
