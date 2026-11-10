@@ -11,8 +11,8 @@ const siyam = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "প্রাজ্ঞ ফুড — আজকের পিঠা",
-  description: "আজ কোন পিঠা কতটি আছে, সরাসরি দেখুন।",
+  title: "Pragya Food ~ প্রাজ্ঞ ফুড",
+  description: Homely | Motherly | Affordable",
 };
 
 export const viewport: Viewport = {
