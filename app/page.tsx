@@ -321,9 +321,15 @@ export default function OrderHome() {
       {/* উপরের বার */}
       <header className="flex items-center justify-between px-5 pb-2 pt-6">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-gray-400">
-            প্রাজ্ঞ ফুড
-          </p>
+          <div className="flex items-center gap-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.png"
+              alt="প্রাজ্ঞ ফুড"
+              className="h-7 w-7 rounded-lg object-contain"
+            />
+            <p className="text-sm font-bold text-gray-500">প্রাজ্ঞ ফুড</p>
+          </div>
           <h1 className="text-2xl font-bold leading-tight">পিঠা অর্ডার</h1>
         </div>
         <div className="flex items-center gap-2">
