@@ -12,7 +12,7 @@ const siyam = localFont({
 
 export const metadata: Metadata = {
   title: "Pragya Food ~ প্রাজ্ঞ ফুড",
-  description: Homely | Motherly | Affordable",
+  description: "Homely | Motherly | Affordable",
 };
 
 export const viewport: Viewport = {
