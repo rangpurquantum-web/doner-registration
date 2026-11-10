@@ -52,6 +52,20 @@ export async function POST(req: Request) {
     const ingredients = String(form.get("ingredients") ?? "").slice(0, 500);
 
     const profiles = await readProfiles();
+
+    // নাম বদল: oldName পাঠালে পুরনো নামের ছবি ও বিবরণ নতুন নামে সরে যায়
+    const oldName = String(form.get("oldName") ?? "").trim();
+    if (oldName && oldName !== name && profiles[oldName]) {
+      if (profiles[name]) {
+        return NextResponse.json(
+          { error: "এই নামে আগে থেকেই পিঠা আছে" },
+          { status: 409 },
+        );
+      }
+      profiles[name] = profiles[oldName];
+      delete profiles[oldName];
+    }
+
     const old = profiles[name];
     let image = old?.image ?? "";
 
