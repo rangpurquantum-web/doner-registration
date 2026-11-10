@@ -29,6 +29,7 @@ type Notice = {
 
 const API = process.env.NEXT_PUBLIC_API_BASE ?? "";
 const TOUR_KEY = "pf-tour-done";
+const MESSENGER_LINK = "https://m.me/pragyafood";
 
 const TIERS: { key: Tier; label: string; desc: string; bg: string }[] = [
   {
@@ -326,6 +327,22 @@ export default function OrderHome() {
           <h1 className="text-2xl font-bold leading-tight">পিঠা অর্ডার</h1>
         </div>
         <div className="flex items-center gap-2">
+          <a
+            href={MESSENGER_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="মেসেঞ্জারে চ্যাট করুন"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F4F5F7] text-[#0084ff]"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-6 w-6"
+              fill="currentColor"
+              aria-hidden
+            >
+              <path d="M12 2C6.36 2 2 6.13 2 11.7c0 2.91 1.19 5.43 3.14 7.17.16.15.26.36.27.58l.05 1.78c.02.57.6.94 1.12.71l1.98-.87c.17-.07.35-.09.52-.05.91.25 1.87.38 2.92.38 5.64 0 10-4.13 10-9.7S17.64 2 12 2zm6 7.46l-2.94 4.66c-.47.74-1.47.93-2.17.4l-2.34-1.75a.6.6 0 0 0-.72 0l-3.16 2.4c-.42.32-.97-.18-.69-.63l2.94-4.66c.47-.74 1.47-.93 2.17-.4l2.34 1.75c.21.16.5.16.72 0l3.16-2.4c.42-.32.97.18.69.63z" />
+            </svg>
+          </a>
           <button
             type="button"
             onClick={() => setTourOn(true)}
