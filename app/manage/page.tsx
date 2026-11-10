@@ -43,9 +43,10 @@ function Editor({
   name: string;
   initial?: Profile;
   adminKey: string;
-  onSaved: (name: string, p: Profile) => void;
+  onSaved: (oldName: string, newName: string, p: Profile) => void;
   onClose: () => void;
 }) {
+  const [nameInput, setNameInput] = useState(name);
   const [details, setDetails] = useState(initial?.details ?? "");
   const [ingredients, setIngredients] = useState(initial?.ingredients ?? "");
   const [file, setFile] = useState<Blob | null>(null);
@@ -65,11 +66,14 @@ function Editor({
   }
 
   async function save() {
+    const finalName = nameInput.trim();
+    if (!finalName) return setMsg("পিঠার নাম লিখুন");
     setBusy(true);
     setMsg("");
     const fd = new FormData();
     fd.set("key", adminKey);
-    fd.set("name", name);
+    fd.set("name", finalName);
+    if (finalName !== name) fd.set("oldName", name);
     fd.set("details", details);
     fd.set("ingredients", ingredients);
     if (file) fd.set("image", file, "photo.webp");
@@ -83,7 +87,7 @@ function Editor({
       if (!r.ok) {
         throw new Error(j.error || `সেভ হয়নি (কোড ${r.status})`);
       }
-      onSaved(name, j.profile as Profile);
+      onSaved(name, finalName, j.profile as Profile);
     } catch (e) {
       setMsg((e as Error).message);
     } finally {
@@ -94,11 +98,22 @@ function Editor({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center">
       <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-[#14372b] p-5 text-[#f3f1e8] sm:rounded-2xl">
-        <h2 className="text-2xl">{name}</h2>
+        <label className="block text-sm text-[#9db8aa]">পিঠার নাম</label>
+        <input
+          value={nameInput}
+          onChange={(e) => setNameInput(e.target.value)}
+          maxLength={80}
+          className="mt-1 w-full rounded-xl bg-[#f3f1e8]/10 p-3 text-xl outline-none"
+        />
+        {nameInput.trim() !== name && (
+          <p className="mt-1 text-xs text-[#e3a83f]">
+            নাম বদলালে ছবি ও বিবরণ নতুন নামে চলে যাবে।
+          </p>
+        )}
 
         {preview && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt={name} className="mt-4 w-full rounded-xl" />
+          <img src={preview} alt={nameInput} className="mt-4 w-full rounded-xl" />
         )}
         <label className="mt-4 block rounded-xl border border-[#f3f1e8]/20 p-3 text-center text-sm">
           📷 {preview ? "ছবি বদলান" : "ছবি বেছে নিন"}
@@ -417,7 +432,7 @@ export default function ManagePage() {
 
       <h2 className="mt-10 text-2xl">পিঠার প্রোফাইল</h2>
       <p className="mt-2 text-sm text-[#9db8aa]">
-        পিঠায় চাপ দিয়ে ছবি ও বিবরণ দিন।
+        পিঠায় চাপ দিয়ে নাম, ছবি ও বিবরণ দিন বা বদলান।
       </p>
 
       <ul className="mt-6 space-y-3">
@@ -467,8 +482,13 @@ export default function ManagePage() {
           initial={profiles[selected]}
           adminKey={adminKey}
           onClose={() => setSelected(null)}
-          onSaved={(n, p) => {
-            setProfiles((prev) => ({ ...prev, [n]: p }));
+          onSaved={(oldName, newName, p) => {
+            setProfiles((prev) => {
+              const next = { ...prev };
+              if (oldName !== newName) delete next[oldName];
+              next[newName] = p;
+              return next;
+            });
             setSelected(null);
           }}
         />
