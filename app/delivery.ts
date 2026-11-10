@@ -10,6 +10,7 @@ export const TIERS = [
   { upTo: 2, fee: 30 },
   { upTo: 3, fee: 40 },
   { upTo: 5, fee: 60 },
+  { upTo: 7, fee: 80 }, // নতুন: ৫–৭ কিমি
 ];
 
 export function roadKm(lat: number, lng: number) {
