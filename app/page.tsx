@@ -30,7 +30,7 @@ type Notice = {
 const API = process.env.NEXT_PUBLIC_API_BASE ?? "";
 const TOUR_KEY = "pf-tour-done";
 const MESSENGER_LINK = "https://m.me/pragyafood";
-const LOGO_SRC = "/logo.png"; // public/logo.png
+const LOGO_SRC = "/icon-512%C3%97512.png"; // public/icon-512×512.png
 
 const TIERS: { key: Tier; label: string; desc: string; bg: string }[] = [
   {
