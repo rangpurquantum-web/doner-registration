@@ -322,24 +322,29 @@ export default function OrderHome() {
     <main className="mx-auto min-h-screen max-w-md bg-white pb-32 text-[#1d1d1f]">
       {/* উপরের বার */}
       <header className="flex items-center justify-between px-5 pb-2 pt-6">
-        <div>
-          <div className="flex items-center gap-1.5">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
             {logoOk ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={LOGO_SRC}
                 alt=""
-                className="h-7 w-7 rounded-lg object-contain"
+                className="h-9 w-9 shrink-0 rounded-lg object-contain"
                 onError={() => setLogoOk(false)}
               />
             ) : (
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#F58220] text-sm font-bold text-white">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#F58220] text-base font-bold text-white">
                 প্র
               </span>
             )}
-            <p className="text-sm font-bold text-gray-500">প্রাজ্ঞ ফুড</p>
+            <div className="leading-tight">
+              <p className="text-[15px] font-bold text-[#1d1d1f]">
+                Pragya Food
+              </p>
+              <p className="text-xs font-medium text-gray-500">প্রাজ্ঞ ফুড</p>
+            </div>
           </div>
-          <h1 className="text-2xl font-bold leading-tight">পিঠা অর্ডার</h1>
+          <h1 className="mt-2 text-2xl font-bold leading-tight">পিঠা</h1>
         </div>
         <div className="flex items-center gap-2">
           <a
