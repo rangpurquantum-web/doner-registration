@@ -64,6 +64,15 @@ const WEEK_FULL = [
 
 const bn = (n: number) => n.toLocaleString("bn-BD");
 
+// পিঠার নাম মেলানোর জন্য: "পিঠা" শব্দ, নারকেল/নারিকেল বানান ও বাড়তি স্পেস বাদ
+const norm = (s: string) =>
+  s
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/নারকেল/g, "নারিকেল")
+    .replace(/পিঠা/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
 function dateLong(iso: string) {
   return new Date(`${iso}T00:00:00+06:00`).toLocaleDateString("bn-BD", {
     day: "numeric",
@@ -125,7 +134,11 @@ export default function OrderHome() {
   useEffect(() => {
     fetch("/api/profiles")
       .then((r) => r.json())
-      .then(setProfiles)
+      .then((p: Record<string, Profile>) => {
+        const m: Record<string, Profile> = {};
+        for (const [k, v] of Object.entries(p)) m[norm(k)] = v;
+        setProfiles(m);
+      })
       .catch(() => {});
   }, []);
 
@@ -519,7 +532,7 @@ export default function OrderHome() {
               <ul className="space-y-3">
                 {items.map((it, idx) => {
                   const q = qty[it.name] ?? 0;
-                  const img = profiles[it.name]?.image;
+                  const img = profiles[norm(it.name)]?.image;
                   const price = tier ? it.prices[tier] : null;
                   return (
                     <li
@@ -528,7 +541,9 @@ export default function OrderHome() {
                     >
                       <button
                         type="button"
-                        onClick={() => profiles[it.name] && setViewing(it.name)}
+                        onClick={() =>
+                          profiles[norm(it.name)] && setViewing(norm(it.name))
+                        }
                         className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-[#FDE6D3]"
                         aria-label={`${it.name} এর ছবি`}
                       >
@@ -716,9 +731,11 @@ export default function OrderHome() {
               />
             )}
             <div className="p-5">
-              <h3 className="text-2xl font-bold">{viewing}</h3>
+              <h3 className="text-2xl font-bold">
+                {items.find((i) => norm(i.name) === viewing)?.name ?? viewing}
+              </h3>
               {profiles[viewing].details && (
-                <p className="mt-2 text-sm leading-relaxed">
+                <p className="mt-2 whitespace-pre-line text-sm leading-relaxed">
                   {profiles[viewing].details}
                 </p>
               )}
