@@ -30,6 +30,7 @@ type Notice = {
 const API = process.env.NEXT_PUBLIC_API_BASE ?? "";
 const TOUR_KEY = "pf-tour-done";
 const MESSENGER_LINK = "https://m.me/pragyafood";
+const LOGO_SRC = "/logo.png"; // public/logo.png
 
 const TIERS: { key: Tier; label: string; desc: string; bg: string }[] = [
   {
@@ -101,6 +102,7 @@ export default function OrderHome() {
   const [cartOpen, setCartOpen] = useState(false);
   const [viewing, setViewing] = useState<string | null>(null);
   const [hint, setHint] = useState("");
+  const [logoOk, setLogoOk] = useState(true);
 
   const [tourOn, setTourOn] = useState(false);
   const [fromLink, setFromLink] = useState(false);
@@ -322,12 +324,19 @@ export default function OrderHome() {
       <header className="flex items-center justify-between px-5 pb-2 pt-6">
         <div>
           <div className="flex items-center gap-1.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/logo.png"
-              alt="প্রাজ্ঞ ফুড"
-              className="h-7 w-7 rounded-lg object-contain"
-            />
+            {logoOk ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={LOGO_SRC}
+                alt=""
+                className="h-7 w-7 rounded-lg object-contain"
+                onError={() => setLogoOk(false)}
+              />
+            ) : (
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#F58220] text-sm font-bold text-white">
+                প্র
+              </span>
+            )}
             <p className="text-sm font-bold text-gray-500">প্রাজ্ঞ ফুড</p>
           </div>
           <h1 className="text-2xl font-bold leading-tight">পিঠা অর্ডার</h1>
