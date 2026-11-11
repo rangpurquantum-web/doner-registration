@@ -2,6 +2,7 @@
 
 // স্টক রিপো: page.tsx (পুরো ফাইল বদলে দিন)
 // Checkout.tsx একই ফোল্ডারে থাকতে হবে
+// শেফের ছবি: public/chef-square.jpg
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -31,6 +32,16 @@ const API = process.env.NEXT_PUBLIC_API_BASE ?? "";
 const TOUR_KEY = "pf-tour-done";
 const MESSENGER_LINK = "https://m.me/pragyafood";
 const LOGO_SRC = "/icon-512%C3%97512.png"; // public/icon-512×512.png
+
+// শেফের তথ্য: এখানে নিজের তথ্য বসান
+const CHEF = {
+  name: "এখানে শেফের নাম",
+  role: "হেড শেফ",
+  years: "১৫+",
+  bio: "দাদীর হাতের রেসিপি আর খাঁটি উপকরণে প্রতিদিন তাজা পিঠা বানান। স্বাদে ঐতিহ্য, মানে কোনো আপস নয়।",
+  tags: ["ভাপা পিঠা", "পাটিসাপটা", "চিতই"],
+  photo: "/chef-square.jpg",
+};
 
 const TIERS: { key: Tier; label: string; desc: string; bg: string }[] = [
   {
@@ -103,6 +114,7 @@ export default function OrderHome() {
   const [viewing, setViewing] = useState<string | null>(null);
   const [hint, setHint] = useState("");
   const [logoOk, setLogoOk] = useState(true);
+  const [chefOpen, setChefOpen] = useState(false);
 
   const [tourOn, setTourOn] = useState(false);
   const [fromLink, setFromLink] = useState(false);
@@ -414,6 +426,20 @@ export default function OrderHome() {
           </button>
         </div>
       </header>
+
+      {/* শেফের পরিচয় লিংক */}
+      <p className="px-5 pt-1 text-sm text-gray-600">
+        <a
+          href="#chef"
+          onClick={(e) => {
+            e.preventDefault();
+            setChefOpen(true);
+          }}
+          className="underline underline-offset-2"
+        >
+          আমাদের শেফ
+        </a>
+      </p>
 
       {/* রূপকথার লিংকে এলে */}
       {(fromLink || linkNote) && (
@@ -805,6 +831,49 @@ export default function OrderHome() {
                 বন্ধ করুন
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* শেফের পরিচয় */}
+      {chefOpen && (
+        <div
+          onClick={() => setChefOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 text-center"
+          >
+            <p className="text-sm text-gray-500">আমাদের শেফ</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={CHEF.photo}
+              alt={CHEF.name}
+              className="mx-auto mt-3 h-28 w-28 rounded-full border-4 border-[#FDE6D3] object-cover object-top"
+            />
+            <h3 className="mt-3 text-2xl font-bold">{CHEF.name}</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {CHEF.role} · {CHEF.years} বছরের অভিজ্ঞতা
+            </p>
+            <p className="mt-4 text-sm leading-relaxed">{CHEF.bio}</p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {CHEF.tags.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-lg bg-[#FFF3E6] px-3 py-1 text-xs text-[#F58220]"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setChefOpen(false)}
+              className="mt-6 w-full rounded-2xl bg-[#F58220] py-3 font-semibold text-white"
+            >
+              বন্ধ করুন
+            </button>
           </div>
         </div>
       )}
