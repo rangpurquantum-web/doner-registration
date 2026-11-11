@@ -2,11 +2,12 @@
 
 // স্টক রিপো: page.tsx (পুরো ফাইল বদলে দিন)
 // Checkout.tsx একই ফোল্ডারে থাকতে হবে
-// শেফের ছবি: public/chef-square.jpg
+// শেফের তথ্য ও ছবি: components/ChefIntro.tsx, public/chef-square.jpg
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Tour, { type TourStepDef } from "./Tour";
+import ChefIntro from "@/components/ChefIntro";
 
 const Checkout = dynamic(() => import("./Checkout"), {
   ssr: false,
@@ -32,21 +33,6 @@ const API = process.env.NEXT_PUBLIC_API_BASE ?? "";
 const TOUR_KEY = "pf-tour-done";
 const MESSENGER_LINK = "https://m.me/pragyafood";
 const LOGO_SRC = "/icon-512%C3%97512.png"; // public/icon-512×512.png
-
-// শেফের তথ্য
-const CHEF = {
-  name: "রুপালি বেগম",
-  role: "রন্ধনশিল্পী",
-  years: "২০+",
-  bio: "আসসালামু আলাইকুম। আপনার উপর শান্তি বর্ষিত হোক। আমি প্রাজ্ঞ ফুড এর রন্ধনশিল্পী আমি একজন সাধারণ গৃহিণী, রন্ধনশিল্পে যার কোনো প্রাতিষ্ঠানিক শিক্ষা নেই। ভালোবাসা, যত্ন আর অভিজ্ঞতাই আমার রান্নার মূল শক্তি। মানুষের তৃপ্তিই আমার সবচেয়ে বড় প্রাপ্তি।",
-  tags: ["ভাপা পিঠা", "পাটিসাপটা", "চিতই"],
-  stats: [
-    { value: "২০+", label: "বছর" },
-    { value: "৩০+", label: "রেসিপি" },
-    { value: "১০k+", label: "খুশি গ্রাহক" },
-  ],
-  photo: "/chef-square.jpg",
-};
 
 const TIERS: { key: Tier; label: string; desc: string; bg: string }[] = [
   {
@@ -120,7 +106,6 @@ export default function OrderHome() {
   const [hint, setHint] = useState("");
   const [logoOk, setLogoOk] = useState(true);
   const [chefOpen, setChefOpen] = useState(false);
-  const [chefPhotoOk, setChefPhotoOk] = useState(true);
 
   const [tourOn, setTourOn] = useState(false);
   const [fromLink, setFromLink] = useState(false);
@@ -842,125 +827,7 @@ export default function OrderHome() {
       )}
 
       {/* শেফের পরিচয় */}
-      {chefOpen && (
-        <div
-          onClick={() => setChefOpen(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 text-center"
-          >
-            <p style={{ fontSize: 13, color: "#8a7a6a", margin: "0 0 14px" }}>
-              আমাদের শেফ
-            </p>
-
-            {chefPhotoOk && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={CHEF.photo}
-                alt={CHEF.name}
-                onError={() => setChefPhotoOk(false)}
-                style={{
-                  width: 112,
-                  height: 112,
-                  borderRadius: "50%",
-                  objectFit: "cover",
-                  objectPosition: "top",
-                  border: "3px solid #f3e3cf",
-                  margin: "0 auto 14px",
-                  display: "block",
-                }}
-              />
-            )}
-
-            <h3
-              style={{
-                fontSize: 20,
-                fontWeight: 600,
-                margin: "0 0 4px",
-                color: "#3b2a1a",
-              }}
-            >
-              {CHEF.name}
-            </h3>
-            <p style={{ fontSize: 14, color: "#8a7a6a", margin: "0 0 14px" }}>
-              {CHEF.role} · {CHEF.years} বছরের অভিজ্ঞতা
-            </p>
-
-            <p
-              style={{
-                fontSize: 14,
-                lineHeight: 1.8,
-                color: "#4a3b2c",
-                margin: "0 0 16px",
-              }}
-            >
-              {CHEF.bio}
-            </p>
-
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                justifyContent: "center",
-                flexWrap: "wrap",
-                marginBottom: 18,
-              }}
-            >
-              {CHEF.tags.map((t) => (
-                <span
-                  key={t}
-                  style={{
-                    fontSize: 12,
-                    padding: "4px 12px",
-                    borderRadius: 8,
-                    background: "#fdf0dc",
-                    color: "#8a4b10",
-                  }}
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-
-            <div
-              style={{
-                borderTop: "1px solid #eadfd3",
-                paddingTop: 14,
-                display: "flex",
-                justifyContent: "space-around",
-              }}
-            >
-              {CHEF.stats.map((s) => (
-                <div key={s.label}>
-                  <p
-                    style={{
-                      fontSize: 20,
-                      fontWeight: 600,
-                      margin: 0,
-                      color: "#3b2a1a",
-                    }}
-                  >
-                    {s.value}
-                  </p>
-                  <p style={{ fontSize: 12, color: "#8a7a6a", margin: 0 }}>
-                    {s.label}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setChefOpen(false)}
-              className="mt-6 w-full rounded-2xl bg-[#F58220] py-3 font-semibold text-white"
-            >
-              বন্ধ করুন
-            </button>
-          </div>
-        </div>
-      )}
+      {chefOpen && <ChefIntro onClose={() => setChefOpen(false)} />}
 
       {/* গাইডেড ট্যুর */}
       {tourOn && menu && !cartOpen && (
