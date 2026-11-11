@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Tour, { type TourStepDef } from "./Tour";
-import ChefIntro from "@/components/ChefIntro.tsx";
+import ChefIntro from "../components/ChefIntro";
 
 const Checkout = dynamic(() => import("./Checkout"), {
   ssr: false,
