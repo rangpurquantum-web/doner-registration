@@ -491,7 +491,7 @@ export default function OrderHome() {
         <>
           {/* দিন নির্বাচন (আজ বাদে): সব কার্ড সমান আকারের, বড় */}
           <section className="mt-6">
-            <p className="px-5 text-lg font-bold">কোন দিনের জন্য?</p>
+            <p className="px-5 text-lg font-bold"></p>
             <div
               id="tour-days"
               className="mx-3 mt-3 flex gap-3 overflow-x-auto px-2 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
