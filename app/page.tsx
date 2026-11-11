@@ -357,10 +357,10 @@ export default function OrderHome() {
               <p className="text-[15px] font-bold text-[#1d1d1f]">
                 Pragya Food
               </p>
-              <p className="text-xs font-medium text-gray-500">প্রাজ্ঞ ফুড</p>
+              <p className="text-xs font-medium text-gray-500">Pragya Food</p>
             </div>
           </div>
-          <h1 className="mt-2 text-2xl font-bold leading-tight">পিঠা</h1>
+          <h1 className="mt-2 text-2xl font-bold leading-tight"></h1>
         </div>
         <div className="flex items-center gap-2">
           <a
