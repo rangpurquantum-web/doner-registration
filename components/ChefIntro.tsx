@@ -1,23 +1,64 @@
-export default function ChefIntro() {
+"use client";
+
+import { useEffect } from "react";
+
+type ChefIntroProps = {
+  onClose: () => void;
+};
+
+export default function ChefIntro({ onClose }: ChefIntroProps) {
   const chef = {
     name: "রুপালি বেগম",
     role: " রন্ধনশিল্পী।",
-    years: "20+",
-    bio: "আসসালামু আলাইকুম। আপনার উপর শান্তি বর্ষিত হোক। আমি প্রাজ্ঞ ফুড এর রন্ধনশিল্পী আমি একজন সাধারণ গৃহিণী, রন্ধনশিল্পে যার কোনো প্রাতিষ্ঠানিক শিক্ষা নেই। ভালোবাসা, যত্ন আর অভিজ্ঞতাই আমার রান্নার মূল শক্তি। মানুষের তৃপ্তিই আমার সবচেয়ে বড় প্রাপ্তি।",
+    years: "২৫+",
+    bio: "আসসালামু আলাইকুম। আপনার উপর শান্তি বর্ষিত হোক। আমি প্রাজ্ঞ ফুড এর রন্ধনশিল্পী আমি একজন সাধারণ গৃহিণী, রন্ধনশিল্পে যার কোনো প্রাতিষ্ঠানিক শিক্ষা নেই। ভালোবাসা, যত্ন আর অভিজ্ঞতাই আমার রান্নার মূল শক্তি। মানুষের তৃপ্তিই আমার সবচেয়ে বড় প্রাপ্তি।",
     tags: ["ভাপা পিঠা", "পাটিসাপটা", "চিতই"],
     stats: [
-      { value: "১৫+", label: "বছর" },
+      { value: "২৫+", label: "বছর" },
       { value: "৩০+", label: "রেসিপি" },
       { value: "১০k+", label: "খুশি গ্রাহক" },
     ],
   };
 
+  // Esc চাপলে বন্ধ, আর খোলা থাকলে পেছনের পেজ স্ক্রল বন্ধ
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [onClose]);
+
   return (
-    <section style={{ padding: "24px 16px", display: "flex", justifyContent: "center" }}>
+    <div
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="আমাদের শেফ"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 50,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
+          position: "relative",
           width: "100%",
           maxWidth: 420,
+          maxHeight: "90vh",
+          overflowY: "auto",
           background: "#fff",
           border: "1px solid #eadfd3",
           borderRadius: 16,
@@ -25,8 +66,30 @@ export default function ChefIntro() {
           textAlign: "center",
         }}
       >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="বন্ধ করুন"
+          style={{
+            position: "absolute",
+            top: 12,
+            right: 12,
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            border: "none",
+            background: "#f3e3cf",
+            color: "#3b2a1a",
+            fontSize: 16,
+            cursor: "pointer",
+          }}
+        >
+          ✕
+        </button>
+
         <p style={{ fontSize: 13, color: "#8a7a6a", margin: "0 0 14px" }}>আমাদের শেফ</p>
 
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/chef-square.jpg"
           alt={chef.name}
@@ -95,7 +158,26 @@ export default function ChefIntro() {
             </div>
           ))}
         </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            marginTop: 18,
+            width: "100%",
+            padding: "12px 0",
+            borderRadius: 14,
+            border: "none",
+            background: "#F58220",
+            color: "#fff",
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          বন্ধ করুন
+        </button>
       </div>
-    </section>
+    </div>
   );
 }
