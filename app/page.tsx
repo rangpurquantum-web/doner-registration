@@ -33,13 +33,18 @@ const TOUR_KEY = "pf-tour-done";
 const MESSENGER_LINK = "https://m.me/pragyafood";
 const LOGO_SRC = "/icon-512%C3%97512.png"; // public/icon-512×512.png
 
-// শেফের তথ্য: এখানে নিজের তথ্য বসান
+// শেফের তথ্য
 const CHEF = {
-  name: "এখানে শেফের নাম",
-  role: "হেড শেফ",
-  years: "১৫+",
-  bio: "দাদীর হাতের রেসিপি আর খাঁটি উপকরণে প্রতিদিন তাজা পিঠা বানান। স্বাদে ঐতিহ্য, মানে কোনো আপস নয়।",
+  name: "রুপালি বেগম",
+  role: "রন্ধনশিল্পী",
+  years: "২০+",
+  bio: "আসসালামু আলাইকুম। আপনার উপর শান্তি বর্ষিত হোক। আমি প্রাজ্ঞ ফুড এর রন্ধনশিল্পী আমি একজন সাধারণ গৃহিণী, রন্ধনশিল্পে যার কোনো প্রাতিষ্ঠানিক শিক্ষা নেই। ভালোবাসা, যত্ন আর অভিজ্ঞতাই আমার রান্নার মূল শক্তি। মানুষের তৃপ্তিই আমার সবচেয়ে বড় প্রাপ্তি।",
   tags: ["ভাপা পিঠা", "পাটিসাপটা", "চিতই"],
+  stats: [
+    { value: "২০+", label: "বছর" },
+    { value: "৩০+", label: "রেসিপি" },
+    { value: "১০k+", label: "খুশি গ্রাহক" },
+  ],
   photo: "/chef-square.jpg",
 };
 
@@ -115,6 +120,7 @@ export default function OrderHome() {
   const [hint, setHint] = useState("");
   const [logoOk, setLogoOk] = useState(true);
   const [chefOpen, setChefOpen] = useState(false);
+  const [chefPhotoOk, setChefPhotoOk] = useState(true);
 
   const [tourOn, setTourOn] = useState(false);
   const [fromLink, setFromLink] = useState(false);
@@ -845,28 +851,106 @@ export default function OrderHome() {
             onClick={(e) => e.stopPropagation()}
             className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-6 text-center"
           >
-            <p className="text-sm text-gray-500">আমাদের শেফ</p>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={CHEF.photo}
-              alt={CHEF.name}
-              className="mx-auto mt-3 h-28 w-28 rounded-full border-4 border-[#FDE6D3] object-cover object-top"
-            />
-            <h3 className="mt-3 text-2xl font-bold">{CHEF.name}</h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <p style={{ fontSize: 13, color: "#8a7a6a", margin: "0 0 14px" }}>
+              আমাদের শেফ
+            </p>
+
+            {chefPhotoOk && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={CHEF.photo}
+                alt={CHEF.name}
+                onError={() => setChefPhotoOk(false)}
+                style={{
+                  width: 112,
+                  height: 112,
+                  borderRadius: "50%",
+                  objectFit: "cover",
+                  objectPosition: "top",
+                  border: "3px solid #f3e3cf",
+                  margin: "0 auto 14px",
+                  display: "block",
+                }}
+              />
+            )}
+
+            <h3
+              style={{
+                fontSize: 20,
+                fontWeight: 600,
+                margin: "0 0 4px",
+                color: "#3b2a1a",
+              }}
+            >
+              {CHEF.name}
+            </h3>
+            <p style={{ fontSize: 14, color: "#8a7a6a", margin: "0 0 14px" }}>
               {CHEF.role} · {CHEF.years} বছরের অভিজ্ঞতা
             </p>
-            <p className="mt-4 text-sm leading-relaxed">{CHEF.bio}</p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
+
+            <p
+              style={{
+                fontSize: 14,
+                lineHeight: 1.8,
+                color: "#4a3b2c",
+                margin: "0 0 16px",
+              }}
+            >
+              {CHEF.bio}
+            </p>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                justifyContent: "center",
+                flexWrap: "wrap",
+                marginBottom: 18,
+              }}
+            >
               {CHEF.tags.map((t) => (
                 <span
                   key={t}
-                  className="rounded-lg bg-[#FFF3E6] px-3 py-1 text-xs text-[#F58220]"
+                  style={{
+                    fontSize: 12,
+                    padding: "4px 12px",
+                    borderRadius: 8,
+                    background: "#fdf0dc",
+                    color: "#8a4b10",
+                  }}
                 >
                   {t}
                 </span>
               ))}
             </div>
+
+            <div
+              style={{
+                borderTop: "1px solid #eadfd3",
+                paddingTop: 14,
+                display: "flex",
+                justifyContent: "space-around",
+              }}
+            >
+              {CHEF.stats.map((s) => (
+                <div key={s.label}>
+                  <p
+                    style={{
+                      fontSize: 20,
+                      fontWeight: 600,
+                      margin: 0,
+                      color: "#3b2a1a",
+                    }}
+                  >
+                    {s.value}
+                  </p>
+                  <p style={{ fontSize: 12, color: "#8a7a6a", margin: 0 }}>
+                    {s.label}
+                  </p>
+                </div>
+              ))}
+            </div>
+
             <button
               type="button"
               onClick={() => setChefOpen(false)}
