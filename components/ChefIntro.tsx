@@ -15,8 +15,7 @@ export default function ChefIntro({ onClose }: ChefIntroProps) {
     tags: ["ভাপা পিঠা", "পাটিসাপটা", "চিতই"],
     stats: [
       { value: "২৫+", label: "বছর" },
-      { value: "৩০+", label: "রেসিপি" },
-      { value: "১০k+", label: "খুশি গ্রাহক" },
+      { value: "৩০+", label: "রেসিপি" }
     ],
   };
 
@@ -39,7 +38,7 @@ export default function ChefIntro({ onClose }: ChefIntroProps) {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="আমাদের শেফ"
+      aria-label="আমাদের রন্ধনশিল্পী "
       style={{
         position: "fixed",
         inset: 0,
@@ -87,7 +86,7 @@ export default function ChefIntro({ onClose }: ChefIntroProps) {
           ✕
         </button>
 
-        <p style={{ fontSize: 13, color: "#8a7a6a", margin: "0 0 14px" }}>আমাদের শেফ</p>
+        <p style={{ fontSize: 13, color: "#8a7a6a", margin: "0 0 14px" }}>আমাদের রন্ধনশিল্পী</p>
 
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
