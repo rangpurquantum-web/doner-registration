@@ -11,9 +11,10 @@ export default function ChefIntro({ onClose }: ChefIntroProps) {
     name: "রুপালি বেগম",
     role: " রন্ধনশিল্পী।",
     years: "২৫+",
-    bio: "আসসালামু আলাইকুম। আপনার উপর শান্তি বর্ষিত হোক। আমি প্রাজ্ঞ ফুড এর রন্ধনশিল্পী। রন্ধনশিল্পে যার কোনো প্রাতিষ্ঠানিক শিক্ষা নেই, কিন্তু রান্নার প্রতি রয়েছে অসীম এক রকম ভালোবাসা। যত্ন, ভালোবাসা আর অভিজ্ঞতাই আমার রান্নার মূল শক্তি। মানুষের তৃপ্তিই আমার সবচেয়ে বড় প্রাপ্তি।",
+    bio: "আসসালামু আলাইকুম। আপনার উপর শান্তি বর্ষিত হোক। আমি প্রাজ্ঞ ফুড এর রন্ধনশিল্পী। রন্ধনশিল্পে যার কোনো প্রাতিষ্ঠানিক শিক্ষা নেই, কিন্তু রান্নার প্রতি রয়েছে অসীম এক রকম ভালোবাসা। যত্ন, ভালোবাসা আর অভিজ্ঞতাই আমার রান্নার মূল শক্তি। মানুষের তৃপ্তিই আমার সবচেয়ে বড় প্রাপ্তি।",
+    stats: [
       { value: "২৫+", label: "বছর" },
-      { value: "৩০+", label: "রেসিপি" }
+      { value: "৩০+", label: "রেসিপি" },
     ],
   };
 
@@ -36,7 +37,7 @@ export default function ChefIntro({ onClose }: ChefIntroProps) {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label="আমাদের রন্ধনশিল্পী "
+      aria-label="আমাদের রন্ধনশিল্পী"
       style={{
         position: "fixed",
         inset: 0,
@@ -84,7 +85,9 @@ export default function ChefIntro({ onClose }: ChefIntroProps) {
           ✕
         </button>
 
-        <p style={{ fontSize: 13, color: "#8a7a6a", margin: "0 0 14px" }}>আমাদের রন্ধনশিল্পী</p>
+        <p style={{ fontSize: 13, color: "#8a7a6a", margin: "0 0 14px" }}>
+          আমাদের রন্ধনশিল্পী
+        </p>
 
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -109,34 +112,9 @@ export default function ChefIntro({ onClose }: ChefIntroProps) {
           {chef.role} · {chef.years} বছরের অভিজ্ঞতা
         </p>
 
-        <p style={{ fontSize: 14, lineHeight: 1.8, color: "#4a3b2c", margin: "0 0 16px" }}>
+        <p style={{ fontSize: 14, lineHeight: 1.8, color: "#4a3b2c", margin: "0 0 18px" }}>
           {chef.bio}
         </p>
-
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            justifyContent: "center",
-            flexWrap: "wrap",
-            marginBottom: 18,
-          }}
-        >
-          {chef.tags.map((t) => (
-            <span
-              key={t}
-              style={{
-                fontSize: 12,
-                padding: "4px 12px",
-                borderRadius: 8,
-                background: "#fdf0dc",
-                color: "#8a4b10",
-              }}
-            >
-              {t}
-            </span>
-          ))}
-        </div>
 
         <div
           style={{
