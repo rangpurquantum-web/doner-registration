@@ -108,6 +108,7 @@ export default function OrderHome() {
   const [fromLink, setFromLink] = useState(false);
   const [linkNote, setLinkNote] = useState("");
   const linkApplied = useRef(false);
+  const pithaChecked = useRef(false);
   const [tourChecked, setTourChecked] = useState(false);
 
   const load = useCallback(async () => {
@@ -141,9 +142,23 @@ export default function OrderHome() {
         const m: Record<string, Profile> = {};
         for (const [k, v] of Object.entries(p)) m[norm(k)] = v;
         setProfiles(m);
+        const wanted = new URLSearchParams(window.location.search).get(
+          "pitha",
+        );
+        if (wanted && m[norm(wanted)]) setViewing(norm(wanted));
+        pithaChecked.current = true;
       })
       .catch(() => {});
   }, []);
+
+  // কার্ড খুললে লিংকে ?pitha=নাম বসে, বন্ধ করলে সরে যায়
+  useEffect(() => {
+    if (!pithaChecked.current) return;
+    const u = new URL(window.location.href);
+    if (viewing) u.searchParams.set("pitha", viewing);
+    else u.searchParams.delete("pitha");
+    window.history.replaceState(null, "", u.toString());
+  }, [viewing]);
 
   // রূপকথা এজেন্টের লিংক: ?date=YYYY-MM-DD&tier=regular&items=নাম~সংখ্যা|নাম~সংখ্যা
   // লিংকে ঢুকলে তারিখ, ক্যাটাগরি ও পিঠা কার্টে সাজানো থাকে, আর কার্ট খুলে যায়
@@ -212,7 +227,8 @@ export default function OrderHome() {
       seen = localStorage.getItem(TOUR_KEY) === "1";
     } catch {}
     setTourChecked(true);
-    const fromAgent = new URLSearchParams(window.location.search).has("items");
+    const sp = new URLSearchParams(window.location.search);
+    const fromAgent = sp.has("items") || sp.has("pitha");
     if (!seen && !fromAgent) setTourOn(true);
   }, [menu, tourChecked]);
 
