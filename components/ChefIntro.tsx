@@ -91,7 +91,7 @@ export default function ChefIntro({ onClose }: ChefIntroProps) {
 
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/chef-square.jpg"
+          src="/chef-portrait.jpg"
           alt={chef.name}
           style={{
             width: 112,
